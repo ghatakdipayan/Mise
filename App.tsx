@@ -12,6 +12,7 @@ import { RefreshHub } from './components/RefreshHub';
 import { AppearanceSheet } from './components/AppearanceSheet';
 import { RecipePicker } from './components/RecipePicker';
 import { SwiggyMcpGuide } from './components/SwiggyMcpGuide';
+import { AuthScreen } from './components/AuthScreen';
 
 const themes: Record<string, AppTheme> = {
   fresh: {
@@ -229,7 +230,43 @@ const getAisle = (name: string): string => {
 };
 
 const App: React.FC = () => {
-  const [appState, setAppState] = useState<'onboarding' | 'app'>('onboarding');
+  const [appState, setAppState] = useState<'auth' | 'onboarding' | 'app'>(() => {
+    const user = localStorage.getItem('pantrypal_user');
+    const onboarded = localStorage.getItem('pantrypal_onboarded');
+    if (!user) return 'auth';
+    if (!onboarded) return 'onboarding';
+    return 'app';
+  });
+
+  const [userProfile, setUserProfile] = useState<{ name: string; email: string; avatar: string } | null>(() => {
+    const saved = localStorage.getItem('pantrypal_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const handleSignIn = (provider: string, profile: { name: string; email: string; avatar: string }) => {
+    localStorage.setItem('pantrypal_user', JSON.stringify(profile));
+    setUserProfile(profile);
+    
+    const onboarded = localStorage.getItem('pantrypal_onboarded');
+    if (onboarded) {
+      setAppState('app');
+    } else {
+      setAppState('onboarding');
+    }
+  };
+
+  const handleSignOut = () => {
+    localStorage.removeItem('pantrypal_user');
+    localStorage.removeItem('pantrypal_onboarded');
+    setUserProfile(null);
+    setAppState('auth');
+  };
+
+  const handleFinishOnboarding = () => {
+    localStorage.setItem('pantrypal_onboarded', 'true');
+    setAppState('app');
+  };
+
   const [theme, setTheme] = useState<string>('fresh');
   const [tab, setTab] = useState<'cook' | 'pantry' | 'plan' | 'list'>('cook');
 
@@ -371,6 +408,7 @@ const App: React.FC = () => {
             pantryItems={lowercasePantryNames}
             onGenerateRecipes={handleGenerateRecipes}
             isGenerating={isGenerating}
+            userAvatar={userProfile?.avatar || 'JM'}
           />
         );
       case 'pantry':
@@ -398,6 +436,14 @@ const App: React.FC = () => {
         return null;
     }
   };
+
+  if (appState === 'auth') {
+    return (
+      <div style={currentTheme.vars as React.CSSProperties} className="h-screen w-screen bg-[var(--bg,#fff)]">
+        <AuthScreen onSignIn={handleSignIn} />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -488,10 +534,10 @@ const App: React.FC = () => {
           className="flex items-center gap-3 border-none bg-transparent cursor-pointer p-2 hover:opacity-85 text-left w-full mt-auto"
         >
           <div className="w-[42px] h-[42px] rounded-full bg-[var(--surface-2,#f4f7f3)] flex items-center justify-center font-head text-[16px] font-extrabold text-[var(--accent,#15a85b)] border border-[var(--line,#eceeea)]">
-            JM
+            {userProfile?.avatar || 'JM'}
           </div>
           <div className="flex flex-col">
-            <div className="font-bold text-[14px] text-[var(--text,#15201a)]">Jordan Morris</div>
+            <div className="font-bold text-[14px] text-[var(--text,#15201a)]">{userProfile?.name || 'Jordan Morris'}</div>
             <div className="text-[12px] text-[var(--muted,#717c75)] mt-[1px]">Customize appearance</div>
           </div>
         </button>
@@ -518,7 +564,7 @@ const App: React.FC = () => {
         {/* Inner Content Area */}
         <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden">
           {appState === 'onboarding' ? (
-            <Onboarding onFinish={() => setAppState('app')} />
+            <Onboarding onFinish={handleFinishOnboarding} />
           ) : (
             <div className="flex-1 flex flex-col min-h-0 min-w-0 relative">
               {/* Inner Tab scroll area */}
@@ -642,6 +688,7 @@ const App: React.FC = () => {
             onSelectTheme={setTheme}
             onClose={() => setAppearanceOpen(false)}
             themes={themes}
+            onSignOut={handleSignOut}
           />
         )}
 

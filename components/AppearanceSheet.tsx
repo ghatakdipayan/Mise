@@ -6,6 +6,7 @@ interface AppearanceSheetProps {
   onSelectTheme: (themeKey: string) => void;
   onClose: () => void;
   themes: Record<string, AppTheme>;
+  onSignOut?: () => void;
 }
 
 export const AppearanceSheet: React.FC<AppearanceSheetProps> = ({
@@ -13,6 +14,7 @@ export const AppearanceSheet: React.FC<AppearanceSheetProps> = ({
   onSelectTheme,
   onClose,
   themes,
+  onSignOut,
 }) => {
   return (
     <div
@@ -69,6 +71,19 @@ export const AppearanceSheet: React.FC<AppearanceSheetProps> = ({
             );
           })}
         </div>
+
+        {onSignOut && (
+          <button
+            onClick={() => {
+              onSignOut();
+              onClose();
+            }}
+            className="w-full h-12 mt-6 border border-solid border-red-100 hover:border-red-200 rounded-xl bg-red-50/50 hover:bg-red-50 text-red-600 font-bold text-[14.5px] cursor-pointer flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+          >
+            <span className="material-symbols-outlined text-[19px]">logout</span>
+            Sign Out
+          </button>
+        )}
       </div>
     </div>
   );

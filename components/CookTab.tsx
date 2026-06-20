@@ -8,6 +8,7 @@ interface CookTabProps {
   pantryItems: string[]; // List of existing lowercase pantry names
   onGenerateRecipes: () => Promise<void>;
   isGenerating: boolean;
+  userAvatar?: string;
 }
 
 type FilterKey = 'all' | 'ready' | 'almost' | 'quick' | 'breakfast';
@@ -19,6 +20,7 @@ export const CookTab: React.FC<CookTabProps> = ({
   pantryItems,
   onGenerateRecipes,
   isGenerating,
+  userAvatar,
 }) => {
   const [filter, setFilter] = useState<FilterKey>('all');
 
@@ -121,7 +123,7 @@ export const CookTab: React.FC<CookTabProps> = ({
           onClick={onOpenAppearance}
           className="w-[46px] h-[46px] flex-none rounded-full border border-[var(--line,#eceeea)] bg-[var(--surface,#fff)] cursor-pointer flex items-center justify-center font-head text-[17px] font-extrabold text-[var(--accent,#15a85b)] active:scale-95 transition-all shadow-sm lg:hidden"
         >
-          JM
+          {userAvatar || 'JM'}
         </button>
       </div>
 
