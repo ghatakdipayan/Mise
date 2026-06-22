@@ -28,13 +28,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn }) => {
         const name = user.displayName || (provider === 'google' ? 'Google User' : 'Facebook User');
         const email = user.email || '';
         
-        // Extract initials for the profile avatar display
+        // Safe initials extraction to prevent crashes with empty or double spaces
         const initials = name
-          .split(' ')
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean)
           .map((n) => n[0])
           .join('')
           .toUpperCase()
-          .slice(0, 2) || 'JM';
+          .slice(0, 2) || 'U';
 
         onSignIn(provider, { name, email, avatar: initials });
       } catch (error: any) {

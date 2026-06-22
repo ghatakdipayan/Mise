@@ -240,14 +240,15 @@ const App: React.FC = () => {
     return 'app';
   });
 
-  const [userProfile, setUserProfile] = useState<{ name: string; email: string; avatar: string } | null>(() => {
+  const [userProfile, setUserProfile] = useState<{ name: string; email: string; avatar: string; provider?: string } | null>(() => {
     const saved = localStorage.getItem('pantrypal_user');
     return saved ? JSON.parse(saved) : null;
   });
 
   const handleSignIn = (provider: string, profile: { name: string; email: string; avatar: string }) => {
-    localStorage.setItem('pantrypal_user', JSON.stringify(profile));
-    setUserProfile(profile);
+    const fullProfile = { ...profile, provider };
+    localStorage.setItem('pantrypal_user', JSON.stringify(fullProfile));
+    setUserProfile(fullProfile);
     
     const onboarded = localStorage.getItem('pantrypal_onboarded');
     if (onboarded) {
@@ -285,14 +286,19 @@ const App: React.FC = () => {
       if (user) {
         const name = user.displayName || 'Google User';
         const email = user.email || '';
+        
+        // Safe initials extraction to prevent crashes with empty or double spaces
         const initials = name
-          .split(' ')
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean)
           .map((n) => n[0])
           .join('')
           .toUpperCase()
-          .slice(0, 2) || 'JM';
+          .slice(0, 2) || 'U';
         
-        const profile = { name, email, avatar: initials };
+        const provider = user.providerData[0]?.providerId?.includes('facebook') ? 'facebook' : 'google';
+        const profile = { name, email, avatar: initials, provider };
         localStorage.setItem('pantrypal_user', JSON.stringify(profile));
         setUserProfile(profile);
 
@@ -304,8 +310,20 @@ const App: React.FC = () => {
           return prev;
         });
       } else {
-        setUserProfile(null);
-        setAppState('auth');
+        // Only reset state if the user was actually logged in using a real Firebase provider
+        const saved = localStorage.getItem('pantrypal_user');
+        if (saved) {
+          try {
+            const profile = JSON.parse(saved);
+            if (profile.provider === 'google' || profile.provider === 'facebook') {
+              setUserProfile(null);
+              setAppState('auth');
+            }
+          } catch (e) {
+            setUserProfile(null);
+            setAppState('auth');
+          }
+        }
       }
     });
 
