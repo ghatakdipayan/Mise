@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect } from 'firebase/auth';
 import { auth, googleProvider, facebookProvider, isFirebaseConfigured } from '../services/firebase';
 
 interface AuthScreenProps {
@@ -22,7 +22,31 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn }) => {
           throw new Error(`${provider} auth provider was not initialized.`);
         }
 
-        const result = await signInWithPopup(auth, activeProvider);
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        let result;
+
+        if (isMobile) {
+          console.log('Mobile device detected. Using signInWithRedirect.');
+          await signInWithRedirect(auth, activeProvider);
+          return; // Stop execution, page is redirecting
+        }
+
+        try {
+          result = await signInWithPopup(auth, activeProvider);
+        } catch (popupError: any) {
+          console.warn('Popup authentication failed, attempting redirect fallback:', popupError);
+          if (
+            popupError.code === 'auth/popup-blocked' ||
+            popupError.code === 'auth/popup-closed-by-user' ||
+            popupError.code === 'auth/cancelled-popup-request'
+          ) {
+            await signInWithRedirect(auth, activeProvider);
+            return; // Stop execution, page is redirecting
+          } else {
+            throw popupError;
+          }
+        }
+
         const user = result.user;
 
         const name = user.displayName || (provider === 'google' ? 'Google User' : 'Facebook User');

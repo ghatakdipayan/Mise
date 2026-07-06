@@ -13,7 +13,7 @@ import { AppearanceSheet } from './components/AppearanceSheet';
 import { RecipePicker } from './components/RecipePicker';
 import { SwiggyMcpGuide } from './components/SwiggyMcpGuide';
 import { AuthScreen } from './components/AuthScreen';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut, getRedirectResult } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from './services/firebase';
 
 const themes: Record<string, AppTheme> = {
@@ -282,6 +282,17 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) return;
 
+    // Retrieve auth redirect results (e.g. from popup fallbacks)
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result) {
+          console.log('Redirect authentication completed successfully:', result.user);
+        }
+      })
+      .catch((error) => {
+        console.error('Redirect authentication failed:', error);
+      });
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         const name = user.displayName || 'Google User';
@@ -297,7 +308,8 @@ const App: React.FC = () => {
           .toUpperCase()
           .slice(0, 2) || 'U';
         
-        const provider = user.providerData[0]?.providerId?.includes('facebook') ? 'facebook' : 'google';
+        const isFacebook = user.providerData?.some((p) => p.providerId.includes('facebook')) || false;
+        const provider = isFacebook ? 'facebook' : 'google';
         const profile = { name, email, avatar: initials, provider };
         localStorage.setItem('pantrypal_user', JSON.stringify(profile));
         setUserProfile(profile);

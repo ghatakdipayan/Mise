@@ -28,6 +28,7 @@ if (isFirebaseConfigured) {
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     auth = getAuth(app);
     googleProvider = new GoogleAuthProvider();
+    googleProvider.setCustomParameters({ prompt: 'select_account' });
     facebookProvider = new FacebookAuthProvider();
   } catch (error) {
     console.error('Failed to initialize Firebase Auth:', error);
