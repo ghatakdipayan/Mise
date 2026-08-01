@@ -233,24 +233,24 @@ const getAisle = (name: string): string => {
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<'auth' | 'onboarding' | 'app'>(() => {
-    const user = localStorage.getItem('pantrypal_user');
-    const onboarded = localStorage.getItem('pantrypal_onboarded');
+    const user = localStorage.getItem('mise_user');
+    const onboarded = localStorage.getItem('mise_onboarded');
     if (!user) return 'auth';
     if (!onboarded) return 'onboarding';
     return 'app';
   });
 
   const [userProfile, setUserProfile] = useState<{ name: string; email: string; avatar: string; provider?: string } | null>(() => {
-    const saved = localStorage.getItem('pantrypal_user');
+    const saved = localStorage.getItem('mise_user');
     return saved ? JSON.parse(saved) : null;
   });
 
   const handleSignIn = (provider: string, profile: { name: string; email: string; avatar: string }) => {
     const fullProfile = { ...profile, provider };
-    localStorage.setItem('pantrypal_user', JSON.stringify(fullProfile));
+    localStorage.setItem('mise_user', JSON.stringify(fullProfile));
     setUserProfile(fullProfile);
     
-    const onboarded = localStorage.getItem('pantrypal_onboarded');
+    const onboarded = localStorage.getItem('mise_onboarded');
     if (onboarded) {
       setAppState('app');
     } else {
@@ -259,8 +259,8 @@ const App: React.FC = () => {
   };
 
   const handleSignOut = async () => {
-    localStorage.removeItem('pantrypal_user');
-    localStorage.removeItem('pantrypal_onboarded');
+    localStorage.removeItem('mise_user');
+    localStorage.removeItem('mise_onboarded');
     setUserProfile(null);
     setAppState('auth');
 
@@ -274,7 +274,7 @@ const App: React.FC = () => {
   };
 
   const handleFinishOnboarding = () => {
-    localStorage.setItem('pantrypal_onboarded', 'true');
+    localStorage.setItem('mise_onboarded', 'true');
     setAppState('app');
   };
 
@@ -311,19 +311,19 @@ const App: React.FC = () => {
         const isFacebook = user.providerData?.some((p) => p.providerId.includes('facebook')) || false;
         const provider = isFacebook ? 'facebook' : 'google';
         const profile = { name, email, avatar: initials, provider };
-        localStorage.setItem('pantrypal_user', JSON.stringify(profile));
+        localStorage.setItem('mise_user', JSON.stringify(profile));
         setUserProfile(profile);
 
         setAppState((prev) => {
           if (prev === 'auth') {
-            const onboarded = localStorage.getItem('pantrypal_onboarded');
+            const onboarded = localStorage.getItem('mise_onboarded');
             return onboarded ? 'app' : 'onboarding';
           }
           return prev;
         });
       } else {
         // Only reset state if the user was actually logged in using a real Firebase provider
-        const saved = localStorage.getItem('pantrypal_user');
+        const saved = localStorage.getItem('mise_user');
         if (saved) {
           try {
             const profile = JSON.parse(saved);

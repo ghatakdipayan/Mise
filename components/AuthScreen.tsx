@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { signInWithPopup, signInWithRedirect } from 'firebase/auth';
-import { auth, googleProvider, facebookProvider, isFirebaseConfigured } from '../services/firebase';
+import { auth, googleProvider, isFirebaseConfigured } from '../services/firebase';
 
 interface AuthScreenProps {
   onSignIn: (provider: string, userProfile: { name: string; email: string; avatar: string }) => void;
@@ -10,29 +10,24 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn }) => {
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
   const [noticeMsg, setNoticeMsg] = useState<string | null>(null);
 
-  const handleSocialLogin = async (provider: string) => {
-    setLoadingProvider(provider);
+  const handleGoogleLogin = async () => {
+    setLoadingProvider('google');
     setNoticeMsg(null);
 
-    // 1. If Firebase is configured and the provider is Google or Facebook, use real Firebase Auth!
-    if (isFirebaseConfigured && auth && (provider === 'google' || provider === 'facebook')) {
+    // 1. If Firebase is configured, use real Firebase Auth!
+    if (isFirebaseConfigured && auth && googleProvider) {
       try {
-        const activeProvider = provider === 'google' ? googleProvider : facebookProvider;
-        if (!activeProvider) {
-          throw new Error(`${provider} auth provider was not initialized.`);
-        }
-
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         let result;
 
         if (isMobile) {
           console.log('Mobile device detected. Using signInWithRedirect.');
-          await signInWithRedirect(auth, activeProvider);
+          await signInWithRedirect(auth, googleProvider);
           return; // Stop execution, page is redirecting
         }
 
         try {
-          result = await signInWithPopup(auth, activeProvider);
+          result = await signInWithPopup(auth, googleProvider);
         } catch (popupError: any) {
           console.warn('Popup authentication failed, attempting redirect fallback:', popupError);
           if (
@@ -40,7 +35,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn }) => {
             popupError.code === 'auth/popup-closed-by-user' ||
             popupError.code === 'auth/cancelled-popup-request'
           ) {
-            await signInWithRedirect(auth, activeProvider);
+            await signInWithRedirect(auth, googleProvider);
             return; // Stop execution, page is redirecting
           } else {
             throw popupError;
@@ -49,9 +44,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn }) => {
 
         const user = result.user;
 
-        const name = user.displayName || (provider === 'google' ? 'Google User' : 'Facebook User');
+        const name = user.displayName || 'Google User';
         const email = user.email || '';
-        
+
         // Safe initials extraction to prevent crashes with empty or double spaces
         const initials = name
           .trim()
@@ -62,10 +57,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn }) => {
           .toUpperCase()
           .slice(0, 2) || 'U';
 
-        onSignIn(provider, { name, email, avatar: initials });
+        onSignIn('google', { name, email, avatar: initials });
       } catch (error: any) {
         console.error('Firebase authentication failed:', error);
-        setNoticeMsg(error.message || `Failed to authenticate via ${provider}. Please check your console.`);
+        setNoticeMsg(error.message || 'Failed to authenticate via Google. Please check your console.');
       } finally {
         setLoadingProvider(null);
       }
@@ -73,35 +68,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn }) => {
     }
 
     // 2. If Firebase is not configured, show a visual warning notice and fall back to mock data
-    if (!isFirebaseConfigured && (provider === 'google' || provider === 'facebook')) {
-      setNoticeMsg('Firebase credentials not detected in .env file. Falling back to simulated login mode.');
-    }
+    setNoticeMsg('Firebase credentials not detected in .env file. Falling back to simulated login mode.');
 
     // Simulated auth delay
     setTimeout(() => {
-      let name = 'Jordan Morris';
-      let email = 'jordan.morris@gmail.com';
-      let avatar = 'JM';
-
-      if (provider === 'google') {
-        name = 'Jordan Morris';
-        email = 'jordan.morris@gmail.com';
-        avatar = 'JM';
-      } else if (provider === 'facebook') {
-        name = 'Alex Rivera';
-        email = 'alex.rivera@fb.com';
-        avatar = 'AR';
-      } else if (provider === 'instagram') {
-        name = 'Taylor Smith';
-        email = 'taylor.smith@insta.com';
-        avatar = 'TS';
-      } else if (provider === 'tiktok') {
-        name = 'Sam Chen';
-        email = 'sam.chen@tiktok.com';
-        avatar = 'SC';
-      }
-
-      onSignIn(provider, { name, email, avatar });
+      onSignIn('google', { name: 'Jordan Morris', email: 'jordan.morris@gmail.com', avatar: 'JM' });
       setLoadingProvider(null);
     }, 1400);
   };
@@ -117,12 +88,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn }) => {
       <div className="w-full max-w-[420px] bg-white/70 backdrop-blur-xl border border-white/80 rounded-[32px] p-8 md:p-10 shadow-[0_24px_60px_-15px_rgba(21,168,91,0.08)] flex flex-col items-center relative z-10 animate-fade-in">
         {/* App Logo */}
         <div className="w-[84px] h-[84px] rounded-2xl bg-white flex items-center justify-center shadow-[0_12px_24px_rgba(0,0,0,0.04)] mb-5 border border-solid border-[#eceeea] hover:scale-105 transition-all">
-          <img src="/icon-192.png" className="w-[62px] h-[62px] rounded-xl" alt="PantryPal Logo" />
+          <img src="/icon-192.png" className="w-[62px] h-[62px] rounded-xl" alt="Mise Logo" />
         </div>
 
         {/* Brand/Title Header */}
         <span className="font-head text-4xl font-extrabold tracking-tight text-[#15201a]">
-          PantryPal
+          Mise
         </span>
         <span className="text-[13px] font-bold tracking-[1.5px] uppercase text-[#15a85b] mt-1">
           Your Smart Sous-Chef
@@ -145,7 +116,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn }) => {
           {/* Google Button */}
           <button
             disabled={loadingProvider !== null}
-            onClick={() => handleSocialLogin('google')}
+            onClick={handleGoogleLogin}
             className={`w-full h-13 border border-solid border-gray-200 bg-white hover:bg-gray-50 active:scale-[0.98] text-gray-700 font-semibold text-[15px] rounded-2xl cursor-pointer flex items-center justify-center gap-3 transition-all ${
               loadingProvider !== null ? 'opacity-50 cursor-not-allowed' : 'shadow-sm'
             }`}
@@ -162,68 +133,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn }) => {
             )}
             <span>{loadingProvider === 'google' ? 'Connecting to Google...' : 'Continue with Google'}</span>
           </button>
-
-          {/* Facebook Button */}
-          <button
-            disabled={loadingProvider !== null}
-            onClick={() => handleSocialLogin('facebook')}
-            className={`w-full h-13 bg-[#1877F2] hover:bg-[#166fe5] active:scale-[0.98] text-white font-semibold text-[15px] rounded-2xl border-none cursor-pointer flex items-center justify-center gap-3 transition-all ${
-              loadingProvider !== null ? 'opacity-50 cursor-not-allowed' : 'shadow-sm'
-            }`}
-          >
-            {loadingProvider === 'facebook' ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <svg className="w-[22px] h-[22px] flex-none" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-              </svg>
-            )}
-            <span>{loadingProvider === 'facebook' ? 'Connecting to Facebook...' : 'Continue with Facebook'}</span>
-          </button>
-
-          {/* Instagram Button */}
-          <button
-            disabled={loadingProvider !== null}
-            onClick={() => handleSocialLogin('instagram')}
-            style={{
-              background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)'
-            }}
-            className={`w-full h-13 active:scale-[0.98] text-white font-semibold text-[15px] rounded-2xl border-none cursor-pointer flex items-center justify-center gap-3 transition-all ${
-              loadingProvider !== null ? 'opacity-50 cursor-not-allowed' : 'shadow-md'
-            }`}
-          >
-            {loadingProvider === 'instagram' ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <svg className="w-5 h-5 flex-none" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.051C.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
-              </svg>
-            )}
-            <span>{loadingProvider === 'instagram' ? 'Connecting to Instagram...' : 'Continue with Instagram'}</span>
-          </button>
-
-          {/* TikTok Button */}
-          <button
-            disabled={loadingProvider !== null}
-            onClick={() => handleSocialLogin('tiktok')}
-            className={`w-full h-13 bg-black hover:bg-zinc-900 active:scale-[0.98] text-white font-semibold text-[15px] rounded-2xl border-none cursor-pointer flex items-center justify-center gap-3 transition-all ${
-              loadingProvider !== null ? 'opacity-50 cursor-not-allowed' : 'shadow-md shadow-black/10'
-            }`}
-          >
-            {loadingProvider === 'tiktok' ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <svg className="w-[18px] h-[18px] flex-none" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.06-2.89-.52-4.08-1.39a8.67 8.67 0 01-1.89-1.92v6.52c.07 2.11-.7 4.29-2.28 5.76-1.57 1.54-3.87 2.22-6.05 1.94-2.18-.24-4.24-1.54-5.32-3.48a9.49 9.49 0 01-1.01-6.19 9.38 9.38 0 014.28-6.73 9.41 9.41 0 017.58-.91V9.45c-1.37-.5-2.92-.37-4.14.42-1.22.8-2.02 2.21-2.13 3.69-.15 1.48.42 3.01 1.52 4.02s2.69 1.44 4.19 1.16c1.5-.24 2.8-1.44 3.19-2.92.12-.55.15-1.12.14-1.68V.02z"/>
-              </svg>
-            )}
-            <span>{loadingProvider === 'tiktok' ? 'Connecting to TikTok...' : 'Continue with TikTok'}</span>
-          </button>
         </div>
 
         {/* Info Privacy Footer */}
         <div className="text-[11.5px] text-[#9aa39c] text-center mt-7 leading-relaxed">
-          By continuing, you agree to PantryPal's <span className="underline hover:text-[#717c75] cursor-pointer">Terms of Service</span> and <span className="underline hover:text-[#717c75] cursor-pointer">Privacy Policy</span>.
+          By continuing, you agree to Mise's <span className="underline hover:text-[#717c75] cursor-pointer">Terms of Service</span> and <span className="underline hover:text-[#717c75] cursor-pointer">Privacy Policy</span>.
         </div>
       </div>
     </div>
