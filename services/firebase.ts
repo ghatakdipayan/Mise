@@ -1,5 +1,5 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, FacebookAuthProvider, Auth } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, Auth } from 'firebase/auth';
 
 // Retrieve credentials from Vite import.meta.env
 const firebaseConfig = {
@@ -21,7 +21,6 @@ export const isFirebaseConfigured = !!(
 let app;
 let auth: Auth | null = null;
 let googleProvider: GoogleAuthProvider | null = null;
-let facebookProvider: FacebookAuthProvider | null = null;
 
 if (isFirebaseConfigured) {
   try {
@@ -29,10 +28,9 @@ if (isFirebaseConfigured) {
     auth = getAuth(app);
     googleProvider = new GoogleAuthProvider();
     googleProvider.setCustomParameters({ prompt: 'select_account' });
-    facebookProvider = new FacebookAuthProvider();
   } catch (error) {
     console.error('Failed to initialize Firebase Auth:', error);
   }
 }
 
-export { auth, googleProvider, facebookProvider };
+export { auth, googleProvider };
