@@ -1,16 +1,19 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { analyzeReceiptImage, analyzeFridgeImage } from '../services/geminiService';
+import * as swiggyMcp from '../services/swiggyMcp';
 
 interface RefreshHubProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddItemsToPantry: (items: { name: string; cat: string; icon: string }[]) => void;
+  onAddItemsToPantry: (items: { name: string; cat: string; icon: string; qty?: string }[]) => void;
   toast: (msg: string) => void;
   pantryItems: string[]; // List of existing lowercase pantry names
+  autoResumeInstamart?: boolean;
+  onAutoResumeHandled?: () => void;
 }
 
 type ScanSource = 'receipt' | 'photo' | 'connect';
-type ScanStage = 'hub' | 'camera' | 'pick' | 'scanning' | 'review';
+type ScanStage = 'hub' | 'camera' | 'pick' | 'swiggy-connect' | 'scanning' | 'review';
 
 export const RefreshHub: React.FC<RefreshHubProps> = ({
   isOpen,
@@ -18,30 +21,50 @@ export const RefreshHub: React.FC<RefreshHubProps> = ({
   onAddItemsToPantry,
   toast,
   pantryItems,
+  autoResumeInstamart,
+  onAutoResumeHandled,
 }) => {
   const [source, setSource] = useState<ScanSource>('receipt');
   const [stage, setStage] = useState<ScanStage>('hub');
   const [connectApp, setConnectApp] = useState<string | null>(null);
-  const [detectedItems, setDetectedItems] = useState<{ name: string; cat: string; icon: string }[]>([]);
+  const [detectedItems, setDetectedItems] = useState<{ name: string; cat: string; icon: string; qty?: string }[]>([]);
   const [selectedItems, setSelectedItems] = useState<Record<number, boolean>>({});
   const [isScanningLoading, setIsScanningLoading] = useState(false);
+  const [isSwiggyConnected, setIsSwiggyConnected] = useState(() => swiggyMcp.isConnected());
+  const [isConnecting, setIsConnecting] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (autoResumeInstamart && isOpen) {
+      setIsSwiggyConnected(true);
+      handleFetchInstamartOrder();
+      onAutoResumeHandled?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoResumeInstamart, isOpen]);
 
   if (!isOpen) return null;
 
   const APPS = [
-    { id: 'instamart', name: 'Swiggy Instamart', color: '#FC8019', fg: '#fff', initial: 'S', sub: 'Last order · 2 days ago' },
-    { id: 'blinkit', name: 'Blinkit', color: '#F8CB46', fg: '#1c1c0e', initial: 'b', sub: 'Last order · yesterday' },
-    { id: 'zepto', name: 'Zepto', color: '#5b2bd6', fg: '#fff', initial: 'Z', sub: 'Last order · 4 days ago' },
-    { id: 'amazonfresh', name: 'Amazon Fresh', color: '#1a8676', fg: '#fff', initial: 'a', sub: 'Last order · 5 days ago' },
-    { id: 'bigbasket', name: 'BigBasket', color: '#6aa121', fg: '#fff', initial: 'b', sub: 'Last order · 1 week ago' },
+    {
+      id: 'instamart',
+      name: 'Swiggy Instamart',
+      color: '#FC8019',
+      fg: '#fff',
+      initial: 'S',
+      sub: isSwiggyConnected ? 'Connected · pulls your real order history' : 'Connect your account for real order history',
+      real: true,
+    },
+    { id: 'blinkit', name: 'Blinkit', color: '#F8CB46', fg: '#1c1c0e', initial: 'b', sub: 'Demo · sample order', real: false },
+    { id: 'zepto', name: 'Zepto', color: '#5b2bd6', fg: '#fff', initial: 'Z', sub: 'Demo · sample order', real: false },
+    { id: 'amazonfresh', name: 'Amazon Fresh', color: '#1a8676', fg: '#fff', initial: 'a', sub: 'Demo · sample order', real: false },
+    { id: 'bigbasket', name: 'BigBasket', color: '#6aa121', fg: '#fff', initial: 'b', sub: 'Demo · sample order', real: false },
   ];
 
   const APP_DOTS = APPS.map(a => ({ color: a.color, fg: a.fg, initial: a.initial }));
 
   const ORDERS: Record<string, [string, string, string][]> = {
-    instamart: [['Paneer', 'Dairy & eggs', 'lunch_dining'], ['Tomatoes', 'Produce', 'nutrition'], ['Fresh coriander', 'Produce', 'eco'], ['Toor dal', 'Pantry staples', 'grain'], ['Curd', 'Dairy & eggs', 'icecream'], ['Onions', 'Produce', 'eco']],
     blinkit: [['Whole milk', 'Dairy & eggs', 'water_drop'], ['Eggs', 'Dairy & eggs', 'egg'], ['Brown bread', 'Grains & pasta', 'bakery_dining'], ['Bananas', 'Produce', 'nutrition'], ['Butter', 'Dairy & eggs', 'lunch_dining']],
     zepto: [['Baby spinach', 'Produce', 'eco'], ['Bell peppers', 'Produce', 'eco'], ['Greek yogurt', 'Dairy & eggs', 'icecream'], ['Cherry tomatoes', 'Produce', 'nutrition'], ['Lemons', 'Produce', 'nutrition']],
     amazonfresh: [['Olive oil', 'Pantry staples', 'water_drop'], ['Quinoa', 'Grains & pasta', 'grain'], ['Chicken breast', 'Proteins', 'set_meal'], ['Parmesan', 'Dairy & eggs', 'lunch_dining'], ['Almonds', 'Pantry staples', 'grain']],
@@ -88,12 +111,22 @@ export const RefreshHub: React.FC<RefreshHubProps> = ({
 
   const handlePickApp = (appId: string) => {
     setConnectApp(appId);
+
+    if (appId === 'instamart') {
+      if (isSwiggyConnected) {
+        handleFetchInstamartOrder();
+      } else {
+        setStage('swiggy-connect');
+      }
+      return;
+    }
+
+    // Demo apps: canned data, clearly labeled as such in the UI.
     setStage('scanning');
     setIsScanningLoading(true);
     setTimeout(() => {
       const items = ORDERS[appId] || [];
       setDetectedItems(items.map(it => ({ name: it[0], cat: it[1], icon: it[2] })));
-      // Auto-select all
       const initialSel: Record<number, boolean> = {};
       items.forEach((_, idx) => {
         initialSel[idx] = true;
@@ -102,6 +135,42 @@ export const RefreshHub: React.FC<RefreshHubProps> = ({
       setStage('review');
       setIsScanningLoading(false);
     }, 1700);
+  };
+
+  const handleConnectSwiggy = async () => {
+    setIsConnecting(true);
+    try {
+      await swiggyMcp.startConnect(); // navigates away to Swiggy's consent page
+    } catch (err: any) {
+      setIsConnecting(false);
+      toast(err.message || 'Could not start Swiggy connection.');
+    }
+  };
+
+  const handleFetchInstamartOrder = async () => {
+    setConnectApp('instamart');
+    setSource('connect');
+    setStage('scanning');
+    setIsScanningLoading(true);
+    try {
+      const items = await swiggyMcp.fetchRecentInstamartOrders(7);
+      setDetectedItems(items);
+      const initialSel: Record<number, boolean> = {};
+      items.forEach((_, idx) => { initialSel[idx] = true; });
+      setSelectedItems(initialSel);
+      setStage('review');
+    } catch (err: any) {
+      toast(err.message || 'Could not fetch your recent Swiggy orders.');
+      setStage('pick');
+    } finally {
+      setIsScanningLoading(false);
+    }
+  };
+
+  const handleDisconnectSwiggy = () => {
+    swiggyMcp.disconnect();
+    setIsSwiggyConnected(false);
+    toast('Disconnected your Swiggy account');
   };
 
   const handleSimulateScan = () => {
@@ -190,11 +259,14 @@ export const RefreshHub: React.FC<RefreshHubProps> = ({
 
   const getReviewTitle = () => {
     if (source === 'photo') return `Spotted ${detectedItems.length} items`;
-    if (source === 'connect') return `${detectedItems.length} items in your order`;
+    if (source === 'connect') return `${detectedItems.length} items found`;
     return `Found ${detectedItems.length} items`;
   };
 
   const getReviewSub = () => {
+    if (source === 'connect' && curApp?.id === 'instamart') {
+      return 'From your last 7 days of Instamart orders · untick to skip';
+    }
     if (source === 'connect' && curApp) {
       return `From ${curApp.name} · untick to skip`;
     }
@@ -417,20 +489,83 @@ export const RefreshHub: React.FC<RefreshHubProps> = ({
                       {a.initial}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-bold text-[16px] text-[var(--text,#15201a)]">{a.name}</div>
+                      <div className="flex items-center gap-[6px]">
+                        <span className="font-bold text-[16px] text-[var(--text,#15201a)]">{a.name}</span>
+                        {a.real && (
+                          <span className="text-[10px] font-extrabold uppercase tracking-wide text-[var(--accent-ink,#0d7a41)] bg-[var(--accent-soft,#e6f4ec)] px-[6px] py-[1px] rounded-full">
+                            Live
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[13px] text-[var(--muted,#717c75)]">{a.sub}</div>
                     </div>
-                    <span className="text-[12.5px] font-bold text-[var(--accent-ink,#0d7a41)] bg-[var(--accent-soft,#e6f4ec)] p-[5px_10px] rounded-full">
-                      {ORDERS[a.id]?.length || 0} items
-                    </span>
+                    {a.id === 'instamart' && isSwiggyConnected ? (
+                      <span className="material-symbols-outlined" style={{ color: 'var(--accent,#15a85b)' }}>check_circle</span>
+                    ) : a.real ? (
+                      <span className="material-symbols-outlined" style={{ color: 'var(--muted,#9aa39c)' }}>chevron_right</span>
+                    ) : (
+                      <span className="text-[12.5px] font-bold text-[var(--muted,#717c75)] bg-[var(--surface-2,#f4f7f3)] p-[5px_10px] rounded-full">
+                        {ORDERS[a.id]?.length || 0} items
+                      </span>
+                    )}
                   </button>
                 ))}
-                <div className="flex items-center gap-[8px] justify-center mt-2 text-[var(--muted,#717c75)] text-[12.5px]">
+                {isSwiggyConnected && (
+                  <button
+                    onClick={handleDisconnectSwiggy}
+                    className="text-[12.5px] font-semibold text-[var(--muted,#9aa39c)] hover:text-[var(--text,#15201a)] cursor-pointer bg-transparent border-none self-center mt-1"
+                  >
+                    Disconnect Swiggy account
+                  </button>
+                )}
+                <div className="flex items-center gap-[8px] justify-center mt-2 text-[var(--muted,#717c75)] text-[12.5px] text-center">
                   <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
                     lock
                   </span>
-                  Read-only · we only see your order history
+                  Swiggy Instamart is a real connection · everything else here is sample data
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* stage === 'swiggy-connect' (One-time OAuth consent) */}
+          {stage === 'swiggy-connect' && (
+            <div className="flex-1 min-h-0 bg-[var(--bg,#fff)] rounded-t-[24px] mt-[10px] flex flex-col animate-sheet-up">
+              <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
+                <div
+                  className="w-[64px] h-[64px] rounded-[18px] flex items-center justify-center font-head font-extrabold text-[28px] mb-5"
+                  style={{ backgroundColor: '#FC8019', color: '#fff' }}
+                >
+                  S
+                </div>
+                <h2 className="font-head text-[21px] font-bold text-[var(--text,#15201a)]">Connect your Swiggy account</h2>
+                <p className="text-[14px] text-[var(--muted,#717c75)] mt-2 max-w-[280px]">
+                  You'll sign in on Swiggy's own page with your phone number and OTP. Mise never sees your credentials —
+                  we only use this to read your last 7 days of Instamart orders.
+                </p>
+                <p className="text-[12px] text-[var(--muted,#9aa39c)] mt-3 max-w-[280px]">
+                  One-time setup · you can disconnect anytime from this screen
+                </p>
+              </div>
+              <div className="p-[14px_22px_28px] border-t border-[var(--line,#eceeea)] flex-none bg-[var(--bg,#fff)] flex flex-col gap-2.5">
+                <button
+                  onClick={handleConnectSwiggy}
+                  disabled={isConnecting}
+                  className={`w-full h-[56px] border-none rounded-full text-white font-bold text-[16.5px] cursor-pointer active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${isConnecting ? 'opacity-60' : 'hover:opacity-90'}`}
+                  style={{ backgroundColor: '#FC8019' }}
+                >
+                  {isConnecting ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    'Continue to Swiggy'
+                  )}
+                </button>
+                <button
+                  onClick={() => setStage('pick')}
+                  className="w-full h-[46px] border-none rounded-full bg-transparent text-[var(--muted,#717c75)] font-semibold text-[14.5px] cursor-pointer"
+                >
+                  Not now
+                </button>
               </div>
             </div>
           )}
@@ -488,10 +623,15 @@ export const RefreshHub: React.FC<RefreshHubProps> = ({
                       {/* Info */}
                       <div className="flex-1 min-w-0">
                         <div
-                          className="font-bold text-[15.5px] truncate"
+                          className="font-bold text-[15.5px] truncate flex items-center gap-[6px]"
                           style={{ color: isChecked ? 'var(--text,#15201a)' : 'var(--muted,#9aa39c)' }}
                         >
-                          {item.name}
+                          <span className="truncate">{item.name}</span>
+                          {item.qty && Number(item.qty) > 1 && (
+                            <span className="flex-none text-[12px] font-extrabold text-[var(--accent-ink,#0d7a41)] bg-[var(--accent-soft,#e6f4ec)] px-[7px] py-[1px] rounded-full">
+                              ×{item.qty}
+                            </span>
+                          )}
                         </div>
                         <div className="text-[12.5px] text-[var(--muted,#717c75)]">{item.cat}</div>
                       </div>
