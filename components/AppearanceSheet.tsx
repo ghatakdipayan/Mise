@@ -32,7 +32,7 @@ export const AppearanceSheet: React.FC<AppearanceSheetProps> = ({
         <p className="text-[14px] text-[var(--muted,#717c75)] mt-[3px]">Try a different look for Mise</p>
 
         <div className="mt-[18px] flex flex-col gap-[11px]">
-          {Object.entries(themes).map(([id, t]) => {
+          {Object.entries(themes).map(([id, t]: [string, AppTheme]) => {
             const isSelected = activeTheme === id;
             return (
               <button

@@ -21,7 +21,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn }) => {
         let result;
 
         if (isMobile) {
-          console.log('Mobile device detected. Using signInWithRedirect.');
           await signInWithRedirect(auth, googleProvider);
           return; // Stop execution, page is redirecting
         }

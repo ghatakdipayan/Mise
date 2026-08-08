@@ -9,6 +9,7 @@ interface CookTabProps {
   onGenerateRecipes: () => Promise<void>;
   isGenerating: boolean;
   userAvatar?: string;
+  userName?: string;
 }
 
 type FilterKey = 'all' | 'ready' | 'almost' | 'quick' | 'breakfast';
@@ -21,15 +22,16 @@ export const CookTab: React.FC<CookTabProps> = ({
   onGenerateRecipes,
   isGenerating,
   userAvatar,
+  userName,
 }) => {
   const [filter, setFilter] = useState<FilterKey>('all');
 
-  // Greeting based on time
+  // Greeting based on the device's local time and the signed-in user's first name
   const getGreeting = () => {
     const hours = new Date().getHours();
-    if (hours < 12) return 'Good morning, Jordan';
-    if (hours < 18) return 'Good afternoon, Jordan';
-    return 'Good evening, Jordan';
+    const timeOfDay = hours < 12 ? 'Good morning' : hours < 18 ? 'Good afternoon' : 'Good evening';
+    const firstName = userName?.trim().split(/\s+/)[0];
+    return firstName ? `${timeOfDay}, ${firstName}` : timeOfDay;
   };
 
   // Format date: "Wednesday, 20 June" (or current date in 2026)

@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface OnboardingProps {
-  onFinish: () => void;
+  onDismiss: (dontShowAgain: boolean) => void;
 }
 
-export const Onboarding: React.FC<OnboardingProps> = ({ onFinish }) => {
-  const [currentSlide, setCurrentSlide] = React.useState(0);
+export const Onboarding: React.FC<OnboardingProps> = ({ onDismiss }) => {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   const slides = [
     {
@@ -35,86 +36,112 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onFinish }) => {
     if (currentSlide < slides.length - 1) {
       setCurrentSlide(currentSlide + 1);
     } else {
-      onFinish();
+      onDismiss(dontShowAgain);
     }
   };
 
   const slide = slides[currentSlide];
 
   return (
-    <div className="ppl-scroll flex flex-col h-full overflow-hidden justify-between animate-fade-in">
-      {/* Skip button header */}
-      <div className="px-[26px] pb-3.5 flex justify-end">
-        <button
-          onClick={onFinish}
-          className="bg-none border-none text-[var(--muted,#717c75)] font-semibold text-[15px] cursor-pointer"
-        >
-          Skip
-        </button>
-      </div>
+    <div
+      onClick={() => onDismiss(dontShowAgain)}
+      className="absolute inset-0 z-[60] bg-[rgba(15,20,17,0.45)] flex items-end lg:items-center lg:justify-center animate-fade-in"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full lg:max-w-[420px] lg:max-h-[85%] flex flex-col bg-[var(--bg,#fff)] rounded-t-[26px] lg:rounded-[26px] pt-[10px] animate-sheet-up overflow-hidden"
+      >
+        {/* Handle + Skip header */}
+        <div className="w-[38px] h-[5px] rounded-full bg-[var(--line,#eceeea)] mx-auto mb-1 lg:hidden" />
+        <div className="px-[22px] pt-2 pb-1 flex justify-end">
+          <button
+            onClick={() => onDismiss(dontShowAgain)}
+            className="bg-none border-none text-[var(--muted,#717c75)] font-semibold text-[15px] cursor-pointer"
+          >
+            Skip
+          </button>
+        </div>
 
-      {/* Main Slide Illustration and Texts */}
-      <div className="flex-1 flex flex-col px-[30px] pt-2 overflow-hidden justify-center">
-        <div className="flex-1 min-h-0 flex items-center justify-center">
-          <div className="w-full aspect-square max-h-[300px] rounded-[30px] bg-[var(--accent-soft,#e6f4ec)] relative overflow-hidden flex items-center justify-center">
-            {/* Grid background */}
+        {/* Slide illustration and text */}
+        <div className="px-[30px] pt-1 pb-2 overflow-hidden">
+          <div className="w-full aspect-[16/10] max-h-[220px] rounded-[24px] bg-[var(--accent-soft,#e6f4ec)] relative overflow-hidden flex items-center justify-center">
             <div className="absolute inset-0" style={{ backgroundImage: 'repeating-linear-gradient(135deg, transparent 0 22px, rgba(21,168,91,0.05) 22px 23px)' }} />
             <span
               className="material-symbols-outlined"
               style={{
-                fontSize: '118px',
+                fontSize: '84px',
                 color: 'var(--accent,#15a85b)',
                 fontVariationSettings: "'wght' 300, 'opsz' 48",
               }}
             >
               {slide.icon}
             </span>
-            <div className="absolute bottom-[18px] right-5 font-mono text-[10px] tracking-[0.5px] text-[var(--accent-ink,#0d7a41)] opacity-50">
-              illustration
+          </div>
+
+          <div className="pt-6">
+            <div className="text-[12.5px] font-bold tracking-[1.5px] uppercase text-[var(--accent,#15a85b)] mb-2.5">
+              {slide.kicker}
             </div>
+            <h1 className="font-head text-[24px] leading-[1.15] font-bold tracking-[-0.4px] mb-2.5 text-[var(--text,#15201a)]">
+              {slide.title}
+            </h1>
+            <p className="text-[14.5px] leading-[1.5] text-[var(--muted,#717c75)]">
+              {slide.body}
+            </p>
           </div>
         </div>
 
-        {/* Text descriptions */}
-        <div className="pt-8">
-          <div className="text-[13px] font-bold tracking-[1.5px] uppercase text-[var(--accent,#15a85b)] mb-3.5">
-            {slide.kicker}
+        {/* Actions footer */}
+        <div className="p-[16px_22px_26px] border-t border-[var(--line,#eceeea)] flex-none">
+          {/* Pagination Dots */}
+          <div className="flex gap-[7px] justify-center mb-[18px]">
+            {slides.map((_, i) => (
+              <div
+                key={i}
+                className="h-[7px] rounded-full transition-all duration-300"
+                style={{
+                  width: i === currentSlide ? '22px' : '7px',
+                  backgroundColor: i === currentSlide ? 'var(--accent,#15a85b)' : 'var(--line,#eceeea)',
+                }}
+              />
+            ))}
           </div>
-          <h1 className="font-head text-[33px] leading-[1.08] font-bold tracking-[-0.5px] mb-3.5 text-[var(--text,#15201a)]">
-            {slide.title}
-          </h1>
-          <p className="text-[16.5px] leading-[1.5] text-[var(--muted,#717c75)] max-w-[300px]">
-            {slide.body}
-          </p>
-        </div>
-      </div>
 
-      {/* Actions footer */}
-      <div className="p-[28px_30px_38px]">
-        {/* Pagination Dots */}
-        <div className="flex gap-[7px] justify-center mb-[26px]">
-          {slides.map((_, i) => (
-            <div
-              key={i}
-              className="h-[7px] rounded-full transition-all duration-300"
+          {/* Don't show again */}
+          <label className="flex items-center gap-[9px] mb-[16px] cursor-pointer select-none">
+            <span
+              onClick={() => setDontShowAgain((v) => !v)}
+              className="w-[19px] h-[19px] flex-none rounded-[6px] border-2 flex items-center justify-center transition-all"
               style={{
-                width: i === currentSlide ? '22px' : '7px',
-                backgroundColor: i === currentSlide ? 'var(--accent,#15a85b)' : 'var(--line,#eceeea)',
+                borderColor: dontShowAgain ? 'var(--accent,#15a85b)' : 'var(--line,#cfd6cd)',
+                backgroundColor: dontShowAgain ? 'var(--accent,#15a85b)' : 'transparent',
               }}
-            />
-          ))}
-        </div>
+            >
+              {dontShowAgain && (
+                <span className="material-symbols-outlined" style={{ fontSize: '14px', color: '#fff', fontVariationSettings: "'wght' 700" }}>
+                  check
+                </span>
+              )}
+            </span>
+            <span
+              onClick={() => setDontShowAgain((v) => !v)}
+              className="text-[13.5px] font-semibold text-[var(--muted,#717c75)]"
+            >
+              Don't show this again
+            </span>
+          </label>
 
-        {/* CTA Button */}
-        <button
-          onClick={handleNext}
-          className="w-full h-[58px] border-none rounded-full bg-[var(--accent,#15a85b)] text-white font-bold text-[17px] cursor-pointer flex items-center justify-center gap-2 shadow-[0_10px_24px_-8px_var(--accent,#15a85b)] hover:opacity-90 active:scale-[0.98] transition-all"
-        >
-          {slide.cta}
-          <span className="material-symbols-outlined" style={{ fontSize: '21px' }}>
-            arrow_forward
-          </span>
-        </button>
+          {/* CTA Button */}
+          <button
+            onClick={handleNext}
+            className="w-full h-[54px] border-none rounded-full bg-[var(--accent,#15a85b)] text-white font-bold text-[16px] cursor-pointer flex items-center justify-center gap-2 shadow-[0_10px_24px_-8px_var(--accent,#15a85b)] hover:opacity-90 active:scale-[0.98] transition-all"
+          >
+            {slide.cta}
+            <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+              arrow_forward
+            </span>
+          </button>
+        </div>
       </div>
     </div>
   );

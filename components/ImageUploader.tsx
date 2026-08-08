@@ -33,7 +33,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ title, files, setF
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-      const newFiles = Array.from(event.target.files).map(file => ({
+      const newFiles = Array.from(event.target.files).map((file: File) => ({
         id: crypto.randomUUID(),
         file,
         preview: URL.createObjectURL(file),
