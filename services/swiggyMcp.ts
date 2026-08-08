@@ -323,7 +323,6 @@ export async function fetchRecentInstamartOrders(days: number = 7): Promise<Fetc
   // value (we previously sent 'INSTAMART') seems to filter to zero matches
   // rather than error, so we leave it out and take whatever comes back.
   const payload = await callImTool(accessToken, 'get_orders', { count: 20 });
-  console.log('[swiggyMcp] get_orders raw payload:', payload);
 
   const orders: any[] = Array.isArray(payload?.data) ? payload.data
     : Array.isArray(payload?.data?.orders) ? payload.data.orders
@@ -335,7 +334,6 @@ export async function fetchRecentInstamartOrders(days: number = 7): Promise<Fetc
     console.warn('[swiggyMcp] Could not find an orders array in payload. Keys:', payload && typeof payload === 'object' ? Object.keys(payload) : typeof payload);
     throw new Error('No recent Instamart orders found in the last 15 days.');
   }
-  console.log('[swiggyMcp] order object keys:', Object.keys(orders[0]));
 
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
   const timestamps = orders.map(getOrderTimestamp);

@@ -31,7 +31,7 @@ export const ListTab: React.FC<ListTabProps> = ({
   const aisleOrder = ['Produce', 'Dairy & eggs', 'Bakery', 'Proteins', 'Grains & pasta', 'Pantry staples', 'Other'];
 
   // Group items by aisle
-  const aisles = Array.from(new Set(shoppingList.map(i => i.aisle || 'Other'))).sort((a, b) => {
+  const aisles = Array.from(new Set(shoppingList.map(i => i.aisle || 'Other'))).sort((a: string, b: string) => {
     const idxA = aisleOrder.indexOf(a);
     const idxB = aisleOrder.indexOf(b);
     return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);

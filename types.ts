@@ -87,10 +87,15 @@ export interface ShoppingItem {
   checked: boolean;
 }
 
+export type MealPlanEntry =
+  | { type: 'recipe'; recipeName: string }
+  | { type: 'order-in' }
+  | { type: 'eat-out' };
+
 export interface WeeklyPlan {
   [day: string]: {
-    Lunch: string | null;
-    Dinner: string | null;
+    Lunch: MealPlanEntry | null;
+    Dinner: MealPlanEntry | null;
   };
 }
 

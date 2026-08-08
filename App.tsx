@@ -11,6 +11,7 @@ import { CookMode } from './components/CookMode';
 import { RefreshHub } from './components/RefreshHub';
 import { AppearanceSheet } from './components/AppearanceSheet';
 import { RecipePicker } from './components/RecipePicker';
+import { MealChoiceSheet } from './components/MealChoiceSheet';
 import { SwiggyMcpGuide } from './components/SwiggyMcpGuide';
 import { AuthScreen } from './components/AuthScreen';
 import { onAuthStateChanged, signOut, getRedirectResult } from 'firebase/auth';
@@ -92,7 +93,8 @@ const defaultRecipes: Recipe[] = [
       'Add lemon zest and juice off the heat, then toss in the pasta with a splash of pasta water.',
       'Finish with grated parmesan and toss until glossy. Serve straight away.'
     ],
-    cookingTime: 20
+    cookingTime: 20,
+    missingItems: []
   },
   {
     recipeName: 'Smoked Salmon Scramble',
@@ -104,7 +106,8 @@ const defaultRecipes: Recipe[] = [
       'Add the eggs and stir slowly, pulling them off the heat just before fully set.|2:30',
       'Fold through torn smoked salmon and serve on toasted sourdough.'
     ],
-    cookingTime: 12
+    cookingTime: 12,
+    missingItems: []
   },
   {
     recipeName: 'Avocado Toast Deluxe',
@@ -116,7 +119,8 @@ const defaultRecipes: Recipe[] = [
       'Fry or poach an egg to your liking.|3:00',
       'Pile avocado on toast, top with the egg and a pinch of chili flakes.'
     ],
-    cookingTime: 8
+    cookingTime: 8,
+    missingItems: []
   },
   {
     recipeName: 'Chickpea Power Bowl',
@@ -128,7 +132,8 @@ const defaultRecipes: Recipe[] = [
       'Chop tomatoes and bell pepper; whisk a lemon-olive oil dressing.',
       'Build the bowl over spinach and finish with the dressing.'
     ],
-    cookingTime: 25
+    cookingTime: 25,
+    missingItems: []
   },
   {
     recipeName: 'Honey Soy Glazed Chicken',
@@ -140,7 +145,8 @@ const defaultRecipes: Recipe[] = [
       'Add garlic, then a glaze of soy sauce and honey; bubble until sticky.',
       'Scatter chili flakes and serve over the rice.'
     ],
-    cookingTime: 30
+    cookingTime: 30,
+    missingItems: []
   },
   {
     recipeName: 'Tomato Quinoa Salad',
@@ -151,7 +157,8 @@ const defaultRecipes: Recipe[] = [
       'Halve the tomatoes and finely slice the red onion.',
       'Dress with lemon and olive oil, then fold in crumbled feta.'
     ],
-    cookingTime: 15
+    cookingTime: 15,
+    missingItems: []
   },
   {
     recipeName: 'Spinach & Feta Omelette',
@@ -162,7 +169,8 @@ const defaultRecipes: Recipe[] = [
       'Wilt the spinach in butter, then pour in the eggs.|2:00',
       'Crumble over feta, fold and slide onto a plate.'
     ],
-    cookingTime: 10
+    cookingTime: 10,
+    missingItems: []
   },
   {
     recipeName: 'One-Pan Lemon Chicken & Rice',
@@ -174,7 +182,8 @@ const defaultRecipes: Recipe[] = [
       'Stir in rice and water; nestle the chicken back on top.|20:00',
       'Cover and cook until the rice is tender, then finish with lemon.'
     ],
-    cookingTime: 35
+    cookingTime: 35,
+    missingItems: []
   }
 ];
 
@@ -213,12 +222,12 @@ const initialList: ShoppingItem[] = [
 ];
 
 const initialPlan: WeeklyPlan = {
-  Mon: { Lunch: null, Dinner: 'Honey Soy Glazed Chicken' },
-  Tue: { Lunch: null, Dinner: 'Lemon Garlic Spaghetti' },
+  Mon: { Lunch: null, Dinner: { type: 'recipe', recipeName: 'Honey Soy Glazed Chicken' } },
+  Tue: { Lunch: null, Dinner: { type: 'recipe', recipeName: 'Lemon Garlic Spaghetti' } },
   Wed: { Lunch: null, Dinner: null },
-  Thu: { Lunch: 'Chickpea Power Bowl', Dinner: 'One-Pan Lemon Chicken & Rice' },
-  Fri: { Lunch: null, Dinner: null },
-  Sat: { Lunch: null, Dinner: 'Avocado Toast Deluxe' },
+  Thu: { Lunch: { type: 'recipe', recipeName: 'Chickpea Power Bowl' }, Dinner: { type: 'recipe', recipeName: 'One-Pan Lemon Chicken & Rice' } },
+  Fri: { Lunch: null, Dinner: { type: 'eat-out' } },
+  Sat: { Lunch: { type: 'order-in' }, Dinner: { type: 'recipe', recipeName: 'Avocado Toast Deluxe' } },
   Sun: { Lunch: null, Dinner: null }
 };
 
@@ -233,12 +242,15 @@ const getAisle = (name: string): string => {
 };
 
 const App: React.FC = () => {
-  const [appState, setAppState] = useState<'auth' | 'onboarding' | 'app'>(() => {
+  const [appState, setAppState] = useState<'auth' | 'app'>(() => {
     const user = localStorage.getItem('mise_user');
-    const onboarded = localStorage.getItem('mise_onboarded');
-    if (!user) return 'auth';
-    if (!onboarded) return 'onboarding';
-    return 'app';
+    return user ? 'app' : 'auth';
+  });
+
+  // Onboarding is a dismissible overlay, not a gate — it shows on top of the
+  // already-usable app unless the user previously chose "Don't show again".
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
+    return localStorage.getItem('mise_onboarded') !== 'true';
   });
 
   const [userProfile, setUserProfile] = useState<{ name: string; email: string; avatar: string; provider?: string } | null>(() => {
@@ -250,18 +262,11 @@ const App: React.FC = () => {
     const fullProfile = { ...profile, provider };
     localStorage.setItem('mise_user', JSON.stringify(fullProfile));
     setUserProfile(fullProfile);
-    
-    const onboarded = localStorage.getItem('mise_onboarded');
-    if (onboarded) {
-      setAppState('app');
-    } else {
-      setAppState('onboarding');
-    }
+    setAppState('app');
   };
 
   const handleSignOut = async () => {
     localStorage.removeItem('mise_user');
-    localStorage.removeItem('mise_onboarded');
     setUserProfile(null);
     setAppState('auth');
 
@@ -274,22 +279,20 @@ const App: React.FC = () => {
     }
   };
 
-  const handleFinishOnboarding = () => {
-    localStorage.setItem('mise_onboarded', 'true');
-    setAppState('app');
+  const handleDismissOnboarding = (dontShowAgain: boolean) => {
+    setShowOnboarding(false);
+    if (dontShowAgain) {
+      localStorage.setItem('mise_onboarded', 'true');
+    }
   };
 
   // Listen to real Firebase Auth changes
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) return;
 
-    // Retrieve auth redirect results (e.g. from popup fallbacks)
+    // Retrieve auth redirect results (e.g. from popup fallbacks); onAuthStateChanged
+    // below picks up the resulting session, so this only needs to surface errors.
     getRedirectResult(auth)
-      .then((result) => {
-        if (result) {
-          console.log('Redirect authentication completed successfully:', result.user);
-        }
-      })
       .catch((error) => {
         console.error('Redirect authentication failed:', error);
       });
@@ -314,14 +317,7 @@ const App: React.FC = () => {
         const profile = { name, email, avatar: initials, provider };
         localStorage.setItem('mise_user', JSON.stringify(profile));
         setUserProfile(profile);
-
-        setAppState((prev) => {
-          if (prev === 'auth') {
-            const onboarded = localStorage.getItem('mise_onboarded');
-            return onboarded ? 'app' : 'onboarding';
-          }
-          return prev;
-        });
+        setAppState('app');
       } else {
         // Only reset state if the user was actually logged in using a real Firebase provider
         const saved = localStorage.getItem('mise_user');
@@ -356,6 +352,7 @@ const App: React.FC = () => {
   const [isHubOpen, setIsHubOpen] = useState<boolean>(false);
   const [appearanceOpen, setAppearanceOpen] = useState<boolean>(false);
   const [pickerSlot, setPickerSlot] = useState<{ day: string; slot: 'Lunch' | 'Dinner' } | null>(null);
+  const [mealChoiceSlot, setMealChoiceSlot] = useState<{ day: string; slot: 'Lunch' | 'Dinner' } | null>(null);
 
   const [isMcpGuideOpen, setIsMcpGuideOpen] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -441,7 +438,7 @@ const App: React.FC = () => {
   };
 
   const handleSelectSlot = (day: string, slot: 'Lunch' | 'Dinner') => {
-    setPickerSlot({ day, slot });
+    setMealChoiceSlot({ day, slot });
   };
 
   const handlePickerSelect = (recipeTitle: string) => {
@@ -451,11 +448,47 @@ const App: React.FC = () => {
       ...prev,
       [day]: {
         ...prev[day],
-        [slot]: recipeTitle,
+        [slot]: { type: 'recipe', recipeName: recipeTitle },
       },
     }));
     setPickerSlot(null);
     triggerToast(`${recipeTitle} added to ${day}`);
+  };
+
+  const handleChooseCook = () => {
+    if (!mealChoiceSlot) return;
+    setPickerSlot(mealChoiceSlot);
+    setMealChoiceSlot(null);
+  };
+
+  const handleChooseMealStatus = (status: 'order-in' | 'eat-out') => {
+    if (!mealChoiceSlot) return;
+    const { day, slot } = mealChoiceSlot;
+    setPlan(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        [slot]: { type: status },
+      },
+    }));
+    triggerToast(status === 'order-in' ? `${slot} marked as ordering in` : `${slot} marked as eating out`);
+    setMealChoiceSlot(null);
+  };
+
+  const handleClearMealSlot = (day: string, slot: 'Lunch' | 'Dinner') => {
+    setPlan(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        [slot]: null,
+      },
+    }));
+  };
+
+  const handleRemoveFromChoiceSheet = () => {
+    if (!mealChoiceSlot) return;
+    handleClearMealSlot(mealChoiceSlot.day, mealChoiceSlot.slot);
+    setMealChoiceSlot(null);
   };
 
   const handleGenerateRecipes = async () => {
@@ -502,6 +535,7 @@ const App: React.FC = () => {
             onGenerateRecipes={handleGenerateRecipes}
             isGenerating={isGenerating}
             userAvatar={userProfile?.avatar || 'JM'}
+            userName={userProfile?.name}
           />
         );
       case 'pantry':
@@ -513,6 +547,7 @@ const App: React.FC = () => {
             recipes={recipes}
             onSelectSlot={handleSelectSlot}
             onSelectRecipe={setSelectedRecipeName}
+            onClearSlot={handleClearMealSlot}
           />
         );
       case 'list':
@@ -656,9 +691,6 @@ const App: React.FC = () => {
 
         {/* Inner Content Area */}
         <div className="flex-1 min-h-0 flex flex-col relative overflow-hidden">
-          {appState === 'onboarding' ? (
-            <Onboarding onFinish={handleFinishOnboarding} />
-          ) : (
             <div className="flex-1 flex flex-col min-h-0 min-w-0 relative">
               {/* Inner Tab scroll area */}
               <div className="ppl-scroll flex-1 overflow-y-auto min-h-0">
@@ -738,8 +770,10 @@ const App: React.FC = () => {
                 </button>
               </div>
             </div>
-          )}
         </div>
+
+        {/* Onboarding: dismissible splash overlay, not a mandatory gate */}
+        {showOnboarding && <Onboarding onDismiss={handleDismissOnboarding} />}
 
         {/* Modal Sheet 1: Recipe Detail Overlay */}
         {activeRecipe && !isCookMode && (
@@ -787,7 +821,21 @@ const App: React.FC = () => {
           />
         )}
 
-        {/* Modal Sheet 5: Meal planner Recipe Picker bottom drawer */}
+        {/* Modal Sheet 5a: Meal planner choice sheet — cook / order in / eat out */}
+        {mealChoiceSlot && (
+          <MealChoiceSheet
+            day={mealChoiceSlot.day}
+            slot={mealChoiceSlot.slot}
+            currentType={plan[mealChoiceSlot.day]?.[mealChoiceSlot.slot]?.type ?? null}
+            onCook={handleChooseCook}
+            onOrderIn={() => handleChooseMealStatus('order-in')}
+            onEatOut={() => handleChooseMealStatus('eat-out')}
+            onRemove={handleRemoveFromChoiceSheet}
+            onClose={() => setMealChoiceSlot(null)}
+          />
+        )}
+
+        {/* Modal Sheet 5b: Meal planner Recipe Picker bottom drawer */}
         {pickerSlot && (
           <RecipePicker
             pickerSlot={pickerSlot.slot.toLowerCase()}
