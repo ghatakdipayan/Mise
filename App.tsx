@@ -15,6 +15,7 @@ import { SwiggyMcpGuide } from './components/SwiggyMcpGuide';
 import { AuthScreen } from './components/AuthScreen';
 import { onAuthStateChanged, signOut, getRedirectResult } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from './services/firebase';
+import * as swiggyMcp from './services/swiggyMcp';
 
 const themes: Record<string, AppTheme> = {
   fresh: {
@@ -359,6 +360,7 @@ const App: React.FC = () => {
   const [isMcpGuideOpen, setIsMcpGuideOpen] = useState<boolean>(false);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [toastText, setToastText] = useState<string | null>(null);
+  const [swiggyAutoResume, setSwiggyAutoResume] = useState<boolean>(false);
 
   // Manage toasts cleanly
   useEffect(() => {
@@ -371,6 +373,22 @@ const App: React.FC = () => {
   const triggerToast = (msg: string) => {
     setToastText(msg);
   };
+
+  // Complete the Swiggy OAuth redirect if we just landed back from mcp.swiggy.com
+  useEffect(() => {
+    swiggyMcp.handleRedirectCallback().then((result) => {
+      if (!result.handled) return;
+      if (result.success) {
+        triggerToast('Connected your Swiggy account');
+        if (result.shouldResumeRefresh) {
+          setIsHubOpen(true);
+          setSwiggyAutoResume(true);
+        }
+      } else {
+        triggerToast(result.error || 'Could not connect to Swiggy');
+      }
+    });
+  }, []);
 
   const handleAddItem = (name: string, silent = false) => {
     const exists = list.some(item => item.name.toLowerCase() === name.toLowerCase());
@@ -399,7 +417,7 @@ const App: React.FC = () => {
     setList(prev => prev.filter(item => !item.checked));
   };
 
-  const handleAddItemsToPantry = (items: { name: string; cat: string; icon: string }[]) => {
+  const handleAddItemsToPantry = (items: { name: string; cat: string; icon: string; qty?: string }[]) => {
     const newPantryItems: PantryItem[] = items.map((it, index) => {
       // Check if it already exists to update or keep days
       const existing = pantry.find(p => p.name.toLowerCase() === it.name.toLowerCase());
@@ -407,7 +425,7 @@ const App: React.FC = () => {
         id: 'p_' + Date.now() + index,
         name: it.name,
         cat: it.cat,
-        qty: '1',
+        qty: it.qty || '1',
         days: existing ? existing.days : 7,
         icon: it.icon,
       };
@@ -754,6 +772,8 @@ const App: React.FC = () => {
           onAddItemsToPantry={handleAddItemsToPantry}
           toast={triggerToast}
           pantryItems={lowercasePantryNames}
+          autoResumeInstamart={swiggyAutoResume}
+          onAutoResumeHandled={() => setSwiggyAutoResume(false)}
         />
 
         {/* Modal Sheet 4: Theme Appearance Selector bottom drawer */}
