@@ -77,6 +77,13 @@ export interface PantryItem {
   qty: string;
   days: number;
   icon: string;
+  /** ISO date (YYYY-MM-DD) the item is expected to go off. `days` is derived from it. */
+  expiresOn?: string;
+}
+
+export interface FoodPreferences {
+  diets: string[];
+  allergies: string[];
 }
 
 export interface ShoppingItem {

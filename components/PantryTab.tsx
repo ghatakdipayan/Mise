@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import type { PantryItem } from '../types';
+import { PANTRY_CATEGORIES } from '../utils/pantry';
 
 interface PantryTabProps {
   pantryItems: PantryItem[];
   onOpenHub: () => void;
+  onAddItem: () => void;
+  onEditItem: (item: PantryItem) => void;
 }
 
-export const PantryTab: React.FC<PantryTabProps> = ({ pantryItems, onOpenHub }) => {
+export const PantryTab: React.FC<PantryTabProps> = ({ pantryItems, onOpenHub, onAddItem, onEditItem }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Expiration helper: red/orange/yellow/green color indicators
@@ -15,7 +18,7 @@ export const PantryTab: React.FC<PantryTabProps> = ({ pantryItems, onOpenHub }) 
       return {
         dot: '#e0823c',
         fg: '#c4701f',
-        label: d <= 0 ? 'today' : '1 day',
+        label: d < 0 ? 'past date' : d === 0 ? 'today' : '1 day',
         ring: '#f3d9c6',
       };
     }
@@ -53,7 +56,7 @@ export const PantryTab: React.FC<PantryTabProps> = ({ pantryItems, onOpenHub }) 
     .filter(p => p.days <= 3)
     .sort((a, b) => a.days - b.days);
 
-  const categoriesOrder = ['Produce', 'Dairy & eggs', 'Proteins', 'Grains & pasta', 'Pantry staples'];
+  const categoriesOrder = PANTRY_CATEGORIES;
 
   return (
     <div className="p-[6px_22px_120px] animate-fade-in flex flex-col min-h-0">
@@ -62,9 +65,19 @@ export const PantryTab: React.FC<PantryTabProps> = ({ pantryItems, onOpenHub }) 
         <h1 className="font-head text-[28px] font-bold tracking-[-0.4px] text-[var(--text,#15201a)]">
           Pantry
         </h1>
-        <span className="text-[14px] text-[var(--muted,#717c75)] font-semibold">
-          {pantryItems.length} items
-        </span>
+        <div className="flex items-center gap-[10px]">
+          <span className="text-[14px] text-[var(--muted,#717c75)] font-semibold">
+            {pantryItems.length} items
+          </span>
+          <button
+            onClick={onAddItem}
+            aria-label="Add item"
+            className="h-[38px] pl-[10px] pr-[14px] rounded-full border-none bg-[var(--accent,#15a85b)] text-white font-bold text-[14px] cursor-pointer flex items-center gap-[4px] active:scale-95 transition-all shadow-sm"
+          >
+            <span className="material-symbols-outlined text-[20px]">add</span>
+            Add
+          </button>
+        </div>
       </div>
 
       {/* Search Input */}
@@ -120,9 +133,10 @@ export const PantryTab: React.FC<PantryTabProps> = ({ pantryItems, onOpenHub }) 
             {expiringItems.map((item, idx) => {
               const fresh = getFreshness(item.days);
               return (
-                <div
-                  key={idx}
-                  className="flex-none w-[120px] rounded-[16px] p-[14px] bg-[var(--surface,#fff)] border border-solid transition-all shadow-sm"
+                <button
+                  key={item.id || idx}
+                  onClick={() => onEditItem(item)}
+                  className="text-left cursor-pointer flex-none w-[120px] rounded-[16px] p-[14px] bg-[var(--surface,#fff)] border border-solid transition-all shadow-sm"
                   style={{ borderColor: fresh.ring }}
                 >
                   <span className="material-symbols-outlined text-[24px]" style={{ color: fresh.fg }}>
@@ -132,9 +146,9 @@ export const PantryTab: React.FC<PantryTabProps> = ({ pantryItems, onOpenHub }) 
                     {item.name}
                   </div>
                   <div className="text-[12.5px] font-bold mt-[3px]" style={{ color: fresh.fg }}>
-                    {item.days <= 0 ? 'Use today' : `${item.days} ${item.days === 1 ? 'day' : 'days'} left`}
+                    {item.days < 0 ? 'Past date' : item.days === 0 ? 'Use today' : `${item.days} ${item.days === 1 ? 'day' : 'days'} left`}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -164,9 +178,10 @@ export const PantryTab: React.FC<PantryTabProps> = ({ pantryItems, onOpenHub }) 
                 {itemsInCat.map((item, i) => {
                   const fresh = getFreshness(item.days);
                   return (
-                    <div
+                    <button
                       key={item.id}
-                      className="flex items-center gap-[13px] p-[13px_16px]"
+                      onClick={() => onEditItem(item)}
+                      className="w-full text-left bg-transparent border-none cursor-pointer flex items-center gap-[13px] p-[13px_16px] hover:bg-[var(--surface-2,#f5f8f4)] transition-all"
                       style={{ borderTop: i === 0 ? 'none' : '1px solid var(--line,#eceeea)' }}
                     >
                       {/* Icon */}
@@ -194,7 +209,7 @@ export const PantryTab: React.FC<PantryTabProps> = ({ pantryItems, onOpenHub }) 
                           {fresh.label}
                         </span>
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>

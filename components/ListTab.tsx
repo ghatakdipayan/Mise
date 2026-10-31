@@ -7,6 +7,7 @@ interface ListTabProps {
   onAddItem: (name: string) => void;
   onClearChecked: () => void;
   onOpenMcpGuide: () => void;
+  onMoveCheckedToPantry: () => void;
 }
 
 export const ListTab: React.FC<ListTabProps> = ({
@@ -15,7 +16,9 @@ export const ListTab: React.FC<ListTabProps> = ({
   onAddItem,
   onClearChecked,
   onOpenMcpGuide,
+  onMoveCheckedToPantry,
 }) => {
+  const checkedCount = shoppingList.filter(i => i.checked).length;
   const [newItemText, setNewItemText] = useState('');
 
   const listRemaining = shoppingList.filter(i => !i.checked).length;
@@ -56,6 +59,17 @@ export const ListTab: React.FC<ListTabProps> = ({
           Clear done
         </button>
       </div>
+
+      {/* Bought items go straight into the pantry */}
+      {checkedCount > 0 && (
+        <button
+          onClick={onMoveCheckedToPantry}
+          className="mt-4 w-full h-[50px] border-none rounded-[14px] bg-[var(--accent,#15a85b)] text-white font-bold text-[15px] cursor-pointer flex items-center justify-center gap-[8px] active:scale-[0.99] transition-all shadow-sm"
+        >
+          <span className="material-symbols-outlined text-[20px]">kitchen</span>
+          Move {checkedCount} bought {checkedCount === 1 ? 'item' : 'items'} to pantry
+        </button>
+      )}
 
       {/* Autonomous AI Order Helper Banner */}
       <div

@@ -44,6 +44,17 @@ Allows planning meals across a Monday–Sunday grid:
 - Supports checking off items (strike-through) and clearing completed lists.
 - Provides a detailed modal guide for configure a **Swiggy Model Context Protocol (MCP) Server** to automate grocery checkout directly from your local Claude Desktop configuration.
 
+### 7. Launch-readiness features
+- **Saved on device**: pantry, shopping list, weekly plan, AI recipes, theme and food preferences survive reloads. The plan resets automatically each new week.
+- **Real expiry dates**: every pantry item has a use-by date that counts down daily. Restocked items get a shelf life by category (produce 5 days, proteins 3, dairy 10, grains 180, staples 365).
+- **Manual pantry editing**: add an item, change quantity, category or use-by date, or remove it.
+- **"I cooked this"**: finishing Cook Mode asks which ingredients you used up and removes them from the pantry.
+- **Working timers**: timed steps in Cook Mode run a real countdown with pause, reset, a beep and vibration.
+- **Bought → pantry**: ticked shopping-list items move into the pantry in one tap.
+- **Shop for the week**: one tap adds every missing ingredient for this week's planned recipes to the list.
+- **Diet and allergy preferences**: set in the avatar menu; AI Chef follows them and recipes that clash show a warning.
+- **Works without an API key**: the app loads and demo modes work; AI features explain that a key is needed.
+
 ---
 
 ## Directory Architecture
@@ -65,9 +76,15 @@ Mise/
 │   ├── RefreshHub.tsx         # Receipts scanner, cameras, and API links
 │   ├── AppearanceSheet.tsx    # App styling custom variables configuration
 │   ├── RecipePicker.tsx       # Sorted recipe planning drawer
+│   ├── PantryItemSheet.tsx    # Add / edit / remove a pantry item
 │   └── SwiggyMcpGuide.tsx     # Swiggy MCP Server instructions
-└── services/
-    └── geminiService.ts       # Gemini 2.5 Flash API calls
+├── services/
+│   ├── geminiService.ts       # Gemini 2.5 Flash API calls
+│   ├── swiggyMcp.ts           # Swiggy Instamart OAuth + MCP client
+│   └── firebase.ts            # Google sign-in
+├── utils/
+│   └── pantry.ts              # Expiry dates, ingredient matching, allergens, device storage
+└── Key_Artifacts/             # Six-page narrative and launch news briefing
 ```
 
 ---

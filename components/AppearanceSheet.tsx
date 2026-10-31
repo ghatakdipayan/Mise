@@ -1,5 +1,6 @@
 import React from 'react';
-import type { AppTheme } from '../types';
+import type { AppTheme, FoodPreferences } from '../types';
+import { ALLERGY_OPTIONS, DIET_OPTIONS } from '../utils/pantry';
 
 interface AppearanceSheetProps {
   activeTheme: string;
@@ -7,6 +8,8 @@ interface AppearanceSheetProps {
   onClose: () => void;
   themes: Record<string, AppTheme>;
   onSignOut?: () => void;
+  preferences: FoodPreferences;
+  onChangePreferences: (prefs: FoodPreferences) => void;
 }
 
 export const AppearanceSheet: React.FC<AppearanceSheetProps> = ({
@@ -15,7 +18,35 @@ export const AppearanceSheet: React.FC<AppearanceSheetProps> = ({
   onClose,
   themes,
   onSignOut,
+  preferences,
+  onChangePreferences,
 }) => {
+  const toggle = (key: keyof FoodPreferences, value: string) => {
+    const current = preferences[key];
+    const next = current.includes(value) ? current.filter(v => v !== value) : [...current, value];
+    onChangePreferences({ ...preferences, [key]: next });
+  };
+
+  const chip = (key: keyof FoodPreferences, value: string) => {
+    const on = preferences[key].includes(value);
+    return (
+      <button
+        key={value}
+        onClick={() => toggle(key, value)}
+        aria-pressed={on}
+        style={{
+          borderColor: on ? 'var(--accent,#15a85b)' : 'var(--line,#eceeea)',
+          backgroundColor: on ? 'var(--accent-soft,#e6f4ec)' : 'var(--surface,#fff)',
+          color: on ? 'var(--accent-ink,#0d7a41)' : 'var(--text,#15201a)',
+        }}
+        className="px-[13px] py-[8px] rounded-full border border-solid text-[14px] font-semibold cursor-pointer flex items-center gap-[4px]"
+      >
+        {on && <span className="material-symbols-outlined text-[16px]">check</span>}
+        {value}
+      </button>
+    );
+  };
+
   return (
     <div
       onClick={onClose}
@@ -23,7 +54,7 @@ export const AppearanceSheet: React.FC<AppearanceSheetProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full lg:max-w-md bg-[var(--bg,#fff)] rounded-t-[26px] lg:rounded-[26px] p-[10px_22px_30px] animate-sheet-up"
+        className="w-full lg:max-w-md max-h-[90%] overflow-y-auto ppl-scroll bg-[var(--bg,#fff)] rounded-t-[26px] lg:rounded-[26px] p-[10px_22px_30px] animate-sheet-up"
       >
         {/* Handle */}
         <div className="w-[38px] h-[5px] rounded-full bg-[var(--line,#eceeea)] mx-auto mb-4" />
@@ -71,6 +102,16 @@ export const AppearanceSheet: React.FC<AppearanceSheetProps> = ({
             );
           })}
         </div>
+
+        {/* Food preferences: steer AI Chef and flag clashing recipes */}
+        <h2 className="font-head text-[22px] font-bold text-[var(--text,#15201a)] mt-7">Food preferences</h2>
+        <p className="text-[14px] text-[var(--muted,#717c75)] mt-[3px]">
+          AI Chef follows these, and recipes that clash are flagged.
+        </p>
+        <div className="text-[13px] font-bold tracking-[0.6px] uppercase text-[var(--muted,#717c75)] mt-4 mb-[8px]">Diet</div>
+        <div className="flex flex-wrap gap-[8px]">{DIET_OPTIONS.map(d => chip('diets', d))}</div>
+        <div className="text-[13px] font-bold tracking-[0.6px] uppercase text-[var(--muted,#717c75)] mt-4 mb-[8px]">Allergies</div>
+        <div className="flex flex-wrap gap-[8px]">{ALLERGY_OPTIONS.map(a => chip('allergies', a))}</div>
 
         {onSignOut && (
           <button
