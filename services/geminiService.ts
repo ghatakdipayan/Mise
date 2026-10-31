@@ -1,11 +1,24 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
-import type { FormData, FeastFormData, Recipe, FeastMenu, FeastPlan } from '../types';
+import type { FormData, FeastFormData, Recipe, FeastMenu, FeastPlan, FoodPreferences } from '../types';
 
-if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable not set");
-}
+// Created on first use so the app still loads (with demo modes) when no key is set.
+export const isAiConfigured = !!process.env.API_KEY;
+let client: GoogleGenAI | null = null;
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getClient = (): GoogleGenAI => {
+  if (!isAiConfigured) {
+    throw new Error('AI features need a Gemini API key. Add GEMINI_API_KEY to your .env file.');
+  }
+  if (!client) client = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  return client;
+};
+
+const ai = {
+  models: {
+    generateContent: (...args: Parameters<GoogleGenAI['models']['generateContent']>) =>
+      getClient().models.generateContent(...args),
+  },
+};
 
 const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -341,8 +354,25 @@ export const analyzeFridgeImage = async (file: File): Promise<{name: string, cat
   }
 };
 
-export const generateRecipesFromPantry = async (pantryIngredients: string[]): Promise<Recipe[]> => {
-  const prompt = `You are a creative chef's assistant. Based on these ingredients currently in the user's pantry: ${pantryIngredients.join(', ')}, suggest 2 delicious recipes they can cook right now. 
+export const generateRecipesFromPantry = async (
+  pantryIngredients: string[],
+  prefs?: FoodPreferences,
+  useSoon: string[] = [],
+): Promise<Recipe[]> => {
+  const dietLine = prefs?.diets.length
+    ? `Every recipe MUST be suitable for these diets: ${prefs.diets.join(', ')}.`
+    : '';
+  const allergyLine = prefs?.allergies.length
+    ? `The user is allergic to: ${prefs.allergies.join(', ')}. Never include these or ingredients containing them.`
+    : '';
+  const useSoonLine = useSoon.length
+    ? `Prioritise these ingredients because they expire soon: ${useSoon.join(', ')}.`
+    : '';
+  const prompt = `You are a creative chef's assistant. Based on these ingredients currently in the user's pantry: ${pantryIngredients.join(', ')}, suggest 2 delicious recipes they can cook right now.
+  ${dietLine}
+  ${allergyLine}
+  ${useSoonLine}
+  Use the pantry ingredient names exactly as written above in the 'ingredients' list. If a step needs timing, end that instruction with "|M:SS" (for example "Simmer the rice.|12:00"). 
   Minimize the need for extra groceries, focusing heavily on what is already available. If a recipe needs some other basic kitchen staple, check if it's in the list. If any ingredients are missing, list them in 'missingItems'. Otherwise 'missingItems' should be empty.
   Return a JSON array of recipes matching the schema.`;
 

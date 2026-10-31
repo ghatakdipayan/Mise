@@ -1,5 +1,6 @@
 import React from 'react';
-import type { Recipe } from '../types';
+import type { Recipe, FoodPreferences } from '../types';
+import { hasIngredient, preferenceConflicts } from '../utils/pantry';
 
 interface RecipeDetailProps {
   recipe: Recipe;
@@ -8,6 +9,7 @@ interface RecipeDetailProps {
   pantryItems: string[]; // List of existing lowercase pantry names
   onAddToList: (name: string, silent?: boolean) => void;
   toast: (msg: string) => void;
+  preferences: FoodPreferences;
 }
 
 export const RecipeDetail: React.FC<RecipeDetailProps> = ({
@@ -17,10 +19,12 @@ export const RecipeDetail: React.FC<RecipeDetailProps> = ({
   pantryItems,
   onAddToList,
   toast,
+  preferences,
 }) => {
+  const conflicts = preferenceConflicts(recipe.ingredients, preferences);
   // Check ingredient status dynamically
   const parsedIngredients = recipe.ingredients.map(name => {
-    const isHave = pantryItems.includes(name.toLowerCase());
+    const isHave = hasIngredient(name, pantryItems);
     return {
       name,
       have: isHave,
@@ -149,6 +153,19 @@ export const RecipeDetail: React.FC<RecipeDetailProps> = ({
             <div className="text-[11.5px] text-[var(--muted,#717c75)]">level</div>
           </div>
         </div>
+
+        {/* Diet and allergy warning */}
+        {conflicts.length > 0 && (
+          <div className="mt-[20px] flex gap-[10px] items-start rounded-[14px] border border-solid border-[#f1c9c0] bg-[#fdf1ee] p-[12px_14px]">
+            <span className="material-symbols-outlined text-[#c0442b] text-[21px] flex-none">warning</span>
+            <div className="min-w-0">
+              <div className="font-bold text-[14px] text-[#9a3420]">Check your preferences</div>
+              {conflicts.map(c => (
+                <div key={c} className="text-[13px] text-[#9a3420] mt-[2px]">{c}</div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Ingredients Header */}
         <div className="flex justify-between items-baseline mt-[26px]">

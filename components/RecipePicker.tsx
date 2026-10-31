@@ -1,4 +1,5 @@
 import React from 'react';
+import { hasIngredient } from '../utils/pantry';
 import type { Recipe } from '../types';
 
 interface RecipePickerProps {
@@ -19,9 +20,7 @@ export const RecipePicker: React.FC<RecipePickerProps> = ({
   // Helper to calculate recipe metadata locally
   const rmeta = (r: Recipe) => {
     const total = r.ingredients.length;
-    const have = r.ingredients.filter(ing => 
-      pantryItems.includes(ing.toLowerCase())
-    ).length;
+    const have = r.ingredients.filter(ing => hasIngredient(ing, pantryItems)).length;
     const missing = total - have;
     return {
       total,

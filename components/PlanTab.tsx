@@ -7,6 +7,7 @@ interface PlanTabProps {
   onSelectSlot: (day: string, slot: 'Lunch' | 'Dinner') => void;
   onSelectRecipe: (recipeName: string) => void;
   onClearSlot: (day: string, slot: 'Lunch' | 'Dinner') => void;
+  onShopForWeek: () => void;
 }
 
 interface DayInfo {
@@ -54,6 +55,7 @@ export const PlanTab: React.FC<PlanTabProps> = ({
   onSelectSlot,
   onSelectRecipe,
   onClearSlot,
+  onShopForWeek,
 }) => {
   const weekDays = useMemo(getThisWeek, []);
   const weekdays = weekDays.slice(0, 5);
@@ -182,6 +184,13 @@ export const PlanTab: React.FC<PlanTabProps> = ({
         <p className="text-[14.5px] text-[var(--muted,#717c75)] mt-[3px]">
           {rangeLabel} · Tap a slot to plan
         </p>
+        <button
+          onClick={onShopForWeek}
+          className="mt-4 w-full h-[50px] rounded-[14px] border border-solid border-[var(--accent,#15a85b)] bg-[var(--accent-soft,#e6f4ec)] text-[var(--accent-ink,#0d7a41)] font-bold text-[15px] cursor-pointer flex items-center justify-center gap-[8px] active:scale-[0.99] transition-all"
+        >
+          <span className="material-symbols-outlined text-[20px]">shopping_cart</span>
+          Shop for this week’s meals
+        </button>
       </div>
 
       {/* Weekdays swimlane */}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { PantryItem, ShoppingItem, WeeklyPlan, AppTheme, Recipe } from './types';
+import type { PantryItem, ShoppingItem, WeeklyPlan, AppTheme, Recipe, FoodPreferences } from './types';
 import { generateRecipesFromPantry } from './services/geminiService';
 import { Onboarding } from './components/Onboarding';
 import { CookTab } from './components/CookTab';
@@ -13,6 +13,11 @@ import { AppearanceSheet } from './components/AppearanceSheet';
 import { RecipePicker } from './components/RecipePicker';
 import { MealChoiceSheet } from './components/MealChoiceSheet';
 import { SwiggyMcpGuide } from './components/SwiggyMcpGuide';
+import { PantryItemSheet } from './components/PantryItemSheet';
+import {
+  refreshExpiry, isoInDays, daysUntil, defaultShelfLife, aisleToCategory, CATEGORY_ICON,
+  hasIngredient, loadJSON, saveJSON, currentWeekKey,
+} from './utils/pantry';
 import { AuthScreen } from './components/AuthScreen';
 import { onAuthStateChanged, signOut, getRedirectResult } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from './services/firebase';
@@ -231,6 +236,19 @@ const initialPlan: WeeklyPlan = {
   Sun: { Lunch: null, Dinner: null }
 };
 
+const STORE = {
+  theme: 'mise_theme',
+  pantry: 'mise_pantry',
+  list: 'mise_list',
+  plan: 'mise_plan',
+  planWeek: 'mise_plan_week',
+  recipes: 'mise_recipes',
+  prefs: 'mise_prefs',
+};
+
+const emptyPlan = (): WeeklyPlan =>
+  Object.fromEntries(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => [d, { Lunch: null, Dinner: null }]));
+
 const getAisle = (name: string): string => {
   const n = name.toLowerCase();
   if (n.includes('tomato') || n.includes('spinach') || n.includes('avocado') || n.includes('lemon') || n.includes('onion') || n.includes('pepper') || n.includes('garlic') || n.includes('coriander') || n.includes('carrot') || n.includes('banana') || n.includes('chives')) return 'Produce';
@@ -339,13 +357,39 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  const [theme, setTheme] = useState<string>('fresh');
+  // Everything the user builds up is saved on this device and restored on reload.
+  const [theme, setTheme] = useState<string>(() => loadJSON(STORE.theme, 'fresh'));
   const [tab, setTab] = useState<'cook' | 'pantry' | 'plan' | 'list'>('cook');
+  const [pantry, setPantry] = useState<PantryItem[]>(() => refreshExpiry(loadJSON(STORE.pantry, initialPantry)));
+  const [list, setList] = useState<ShoppingItem[]>(() => loadJSON(STORE.list, initialList));
+  const [plan, setPlan] = useState<WeeklyPlan>(() => {
+    // The plan is keyed by weekday, so a new week starts with a clean slate.
+    const savedWeek = loadJSON<string | null>(STORE.planWeek, null);
+    if (savedWeek === null) return initialPlan;
+    return savedWeek === currentWeekKey() ? loadJSON(STORE.plan, initialPlan) : emptyPlan();
+  });
+  const [recipes, setRecipes] = useState<Recipe[]>(() => loadJSON(STORE.recipes, defaultRecipes));
+  const [preferences, setPreferences] = useState<FoodPreferences>(() => loadJSON(STORE.prefs, { diets: [], allergies: [] }));
+  const [editingPantryItem, setEditingPantryItem] = useState<PantryItem | 'new' | null>(null);
 
-  const [pantry, setPantry] = useState<PantryItem[]>(initialPantry);
-  const [list, setList] = useState<ShoppingItem[]>(initialList);
-  const [plan, setPlan] = useState<WeeklyPlan>(initialPlan);
-  const [recipes, setRecipes] = useState<Recipe[]>(defaultRecipes);
+  useEffect(() => saveJSON(STORE.theme, theme), [theme]);
+  useEffect(() => saveJSON(STORE.pantry, pantry), [pantry]);
+  useEffect(() => saveJSON(STORE.list, list), [list]);
+  useEffect(() => {
+    saveJSON(STORE.plan, plan);
+    saveJSON(STORE.planWeek, currentWeekKey());
+  }, [plan]);
+  useEffect(() => saveJSON(STORE.recipes, recipes), [recipes]);
+  useEffect(() => saveJSON(STORE.prefs, preferences), [preferences]);
+
+  // Recount "days left" when the app comes back to the foreground on a later day.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') setPantry(prev => refreshExpiry(prev));
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
 
   const [selectedRecipeName, setSelectedRecipeName] = useState<string | null>(null);
   const [isCookMode, setIsCookMode] = useState<boolean>(false);
@@ -417,14 +461,16 @@ const App: React.FC = () => {
   const handleAddItemsToPantry = (items: { name: string; cat: string; icon: string; qty?: string }[]) => {
     const newPantryItems: PantryItem[] = items.map((it, index) => {
       // Check if it already exists to update or keep days
-      const existing = pantry.find(p => p.name.toLowerCase() === it.name.toLowerCase());
+      // Restocking means fresh stock, so expiry restarts from the category's shelf life.
+      const expiresOn = isoInDays(defaultShelfLife(it.cat));
       return {
         id: 'p_' + Date.now() + index,
         name: it.name,
         cat: it.cat,
         qty: it.qty || '1',
-        days: existing ? existing.days : 7,
-        icon: it.icon,
+        days: daysUntil(expiresOn),
+        expiresOn,
+        icon: it.icon || CATEGORY_ICON[it.cat] || 'grocery',
       };
     });
 
@@ -435,6 +481,65 @@ const App: React.FC = () => {
       );
       return [...filtered, ...newPantryItems];
     });
+  };
+
+  const handleSavePantryItem = (item: PantryItem) => {
+    setPantry(prev => {
+      const exists = prev.some(p => p.id === item.id);
+      return exists ? prev.map(p => (p.id === item.id ? item : p)) : [...prev, item];
+    });
+    triggerToast(editingPantryItem === 'new' ? `${item.name} added to your pantry` : `${item.name} updated`);
+    setEditingPantryItem(null);
+  };
+
+  const handleRemovePantryItem = (id: string) => {
+    const item = pantry.find(p => p.id === id);
+    setPantry(prev => prev.filter(p => p.id !== id));
+    if (item) triggerToast(`${item.name} removed from your pantry`);
+    setEditingPantryItem(null);
+  };
+
+  const handleUsedUp = (ids: string[]) => {
+    setPantry(prev => prev.filter(p => !ids.includes(p.id)));
+  };
+
+  const handleMoveCheckedToPantry = () => {
+    const bought = list.filter(i => i.checked);
+    if (!bought.length) return;
+    handleAddItemsToPantry(
+      bought.map(i => {
+        const cat = aisleToCategory(i.aisle);
+        return { name: i.name, cat, icon: CATEGORY_ICON[cat], qty: i.qty };
+      })
+    );
+    setList(prev => prev.filter(i => !i.checked));
+    triggerToast(`${bought.length} ${bought.length === 1 ? 'item' : 'items'} moved to your pantry`);
+  };
+
+  const handleShopForWeek = () => {
+    const plannedNames = Object.values(plan).flatMap(day =>
+      [day.Lunch, day.Dinner].flatMap(e => (e && e.type === 'recipe' ? [e.recipeName] : []))
+    );
+    const plannedRecipes = recipes.filter(r => plannedNames.includes(r.recipeName));
+    if (!plannedRecipes.length) {
+      triggerToast('Plan a recipe first, then shop for it');
+      return;
+    }
+    const pantryNames = pantry.map(p => p.name);
+    const onList = list.map(i => i.name);
+    const needed: string[] = [];
+    plannedRecipes.forEach(r =>
+      r.ingredients.forEach(ing => {
+        if (hasIngredient(ing, pantryNames) || hasIngredient(ing, onList)) return;
+        if (!needed.some(n => n.toLowerCase() === ing.toLowerCase())) needed.push(ing);
+      })
+    );
+    if (!needed.length) {
+      triggerToast(`You have everything for ${plannedRecipes.length} planned meals`);
+      return;
+    }
+    needed.forEach(name => handleAddItem(name, true));
+    triggerToast(`${needed.length} ${needed.length === 1 ? 'item' : 'items'} added for this week’s meals`);
   };
 
   const handleSelectSlot = (day: string, slot: 'Lunch' | 'Dinner') => {
@@ -495,7 +600,8 @@ const App: React.FC = () => {
     setIsGenerating(true);
     try {
       const ingredientNames = pantry.map(p => p.name);
-      const generated = await generateRecipesFromPantry(ingredientNames);
+      const useSoon = pantry.filter(p => p.days <= 3).map(p => p.name);
+      const generated = await generateRecipesFromPantry(ingredientNames, preferences, useSoon);
       
       // Append generated recipes to local state (avoiding duplicates)
       setRecipes(prev => {
@@ -539,7 +645,14 @@ const App: React.FC = () => {
           />
         );
       case 'pantry':
-        return <PantryTab pantryItems={pantry} onOpenHub={() => setIsHubOpen(true)} />;
+        return (
+          <PantryTab
+            pantryItems={pantry}
+            onOpenHub={() => setIsHubOpen(true)}
+            onAddItem={() => setEditingPantryItem('new')}
+            onEditItem={setEditingPantryItem}
+          />
+        );
       case 'plan':
         return (
           <PlanTab
@@ -548,6 +661,7 @@ const App: React.FC = () => {
             onSelectSlot={handleSelectSlot}
             onSelectRecipe={setSelectedRecipeName}
             onClearSlot={handleClearMealSlot}
+            onShopForWeek={handleShopForWeek}
           />
         );
       case 'list':
@@ -558,6 +672,7 @@ const App: React.FC = () => {
             onAddItem={(name) => handleAddItem(name)}
             onClearChecked={handleClearChecked}
             onOpenMcpGuide={() => setIsMcpGuideOpen(true)}
+            onMoveCheckedToPantry={handleMoveCheckedToPantry}
           />
         );
       default:
@@ -784,6 +899,7 @@ const App: React.FC = () => {
             pantryItems={lowercasePantryNames}
             onAddToList={(name, silent) => handleAddItem(name, silent)}
             toast={triggerToast}
+            preferences={preferences}
           />
         )}
 
@@ -796,6 +912,8 @@ const App: React.FC = () => {
               setSelectedRecipeName(null);
             }}
             toast={triggerToast}
+            pantry={pantry}
+            onUsedUp={handleUsedUp}
           />
         )}
 
@@ -818,6 +936,18 @@ const App: React.FC = () => {
             onClose={() => setAppearanceOpen(false)}
             themes={themes}
             onSignOut={handleSignOut}
+            preferences={preferences}
+            onChangePreferences={setPreferences}
+          />
+        )}
+
+        {/* Pantry item add / edit sheet */}
+        {editingPantryItem && (
+          <PantryItemSheet
+            item={editingPantryItem === 'new' ? null : editingPantryItem}
+            onSave={handleSavePantryItem}
+            onRemove={handleRemovePantryItem}
+            onClose={() => setEditingPantryItem(null)}
           />
         )}
 

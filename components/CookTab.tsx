@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { hasIngredient } from '../utils/pantry';
 import type { Recipe } from '../types';
 
 interface CookTabProps {
@@ -46,9 +47,7 @@ export const CookTab: React.FC<CookTabProps> = ({
   // Helper to calculate recipe completeness dynamically
   const rmeta = (r: Recipe) => {
     const total = r.ingredients.length;
-    const have = r.ingredients.filter(ing => 
-      pantryItems.includes(ing.toLowerCase())
-    ).length;
+    const have = r.ingredients.filter(ing => hasIngredient(ing, pantryItems)).length;
     const missing = total - have;
     return {
       total,
