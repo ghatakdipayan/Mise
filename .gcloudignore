@@ -1,0 +1,13 @@
+# Files uploaded to Cloud Build by `gcloud run deploy --source .`
+# .env.production is intentionally included: it holds the public Firebase web config.
+.gcloudignore
+.git
+.gitignore
+node_modules
+dist
+dist-server
+android-app
+.env
+.env.local
+.env.development
+*.log

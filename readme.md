@@ -78,35 +78,62 @@ Mise/
 │   ├── RecipePicker.tsx       # Sorted recipe planning drawer
 │   ├── PantryItemSheet.tsx    # Add / edit / remove a pantry item
 │   └── SwiggyMcpGuide.tsx     # Swiggy MCP Server instructions
+├── server/
+│   ├── index.ts               # Node server: app hosting, /api/ai, /swiggy-api relay
+│   └── gemini.ts              # Gemini prompts and schemas (server-side only)
 ├── services/
-│   ├── geminiService.ts       # Gemini 2.5 Flash API calls
+│   ├── geminiService.ts       # Browser wrappers that call /api/ai
 │   ├── swiggyMcp.ts           # Swiggy Instamart OAuth + MCP client
 │   └── firebase.ts            # Google sign-in
 ├── utils/
 │   └── pantry.ts              # Expiry dates, ingredient matching, allergens, device storage
-└── Key_Artifacts/             # Six-page narrative and launch news briefing
+├── Key_Artifacts/             # Six-page narrative and launch news briefing
+├── Dockerfile                 # Cloud Run image
+└── deploy.sh                  # One-command deploy to GCP
 ```
 
 ---
 
 ## Local Development
 
-### 1. Environment Configuration
-Create a `.env` file in the root folder and add your Gemini API Key:
+### 1. Environment configuration
+Copy `.env.example` to `.env` and add your Gemini API key. The key is used only by the server (`server/gemini.ts`) and is never sent to the browser:
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
+Firebase values are optional locally; without them the app uses a mock sign-in.
 
-### 2. Run standard commands
-To start the local bundler or preview production builds:
+### 2. Commands
 ```bash
-# Install dependencies
-# (Use prefix `/usr/local/bin` if npm command is not found in local workspace paths)
 npm install
-
-# Start local development server
-npm run dev
-
-# Compile TypeScript and test standard production bundler
-npm run build
+npm run dev        # app + API on http://localhost:3000 (Vite hot reload inside the Node server)
+npm run build      # builds the app (dist/) and the server (dist-server/)
+npm start          # runs the production build on http://localhost:8080
+npm run typecheck
 ```
+
+---
+
+## Hosting on Google Cloud (Cloud Run)
+
+Mise runs as one Cloud Run service, `mise`, in project `pantrypal-ai-488608` (region `asia-south1`, Mumbai). The same Node server:
+- serves the built app,
+- runs every Gemini call server-side at `/api/ai/*` (fixed prompts, per-IP rate limit; key from Secret Manager),
+- relays Swiggy Instamart MCP calls at `/swiggy-api/*` (Swiggy blocks direct browser calls).
+
+### Deploy
+In [Google Cloud Shell](https://shell.cloud.google.com) (already signed in to the right Google account):
+```bash
+git clone https://github.com/ghatakdipayan/Mise.git
+cd Mise
+./deploy.sh
+```
+The script is safe to re-run. It uses the existing project (never creates one) and:
+1. enables Cloud Run, Cloud Build, Artifact Registry, Secret Manager, Firebase and Identity Toolkit APIs;
+2. asks for your Gemini API key once and stores it in Secret Manager as `gemini-api-key`;
+3. reads the project's Firebase web app config so Google sign-in works;
+4. builds the `Dockerfile` with Cloud Build and deploys to Cloud Run;
+5. adds the Cloud Run address to Firebase Auth's authorized domains;
+6. prints the live URL and checks `/healthz`.
+
+Rotate the Gemini key: `gcloud secrets versions add gemini-api-key --data-file=-`, then re-run `./deploy.sh`.
